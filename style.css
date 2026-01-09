@@ -218,13 +218,17 @@ body {
     pointer-events: none;
     /* Let clicks pass through */
     display: flex;
-    flex-direction: column;
-    gap: 20px;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 30px;
 }
 
 .character-info-overlay h1 {
     margin: 0;
-    font-size: 4rem;
+    margin-bottom: 20px;
+    /* Offset it slightly from the very bottom for better visual balance with portrait */
+    font-size: 5rem;
+    line-height: 0.8;
     font-weight: 700;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.1);
