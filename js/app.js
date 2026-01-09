@@ -123,6 +123,25 @@ class State {
     get settings() { return this.activeSeries.settings; }
 
     updateSettings(dimensions, tiers) {
+        // If dimensions changed, we need to migrate all characters in this series
+        const oldDim = this.activeSeries.settings.dimensions;
+
+        if (dimensions !== oldDim) {
+            this.activeSeries.characters.forEach(char => {
+                // Ensure array exists
+                if (!char.stats) char.stats = [];
+
+                if (dimensions > oldDim) {
+                    // Grow: Add 0s (lowest tier)
+                    const diff = dimensions - oldDim;
+                    for (let i = 0; i < diff; i++) char.stats.push(0);
+                } else {
+                    // Shrink: Slice array
+                    char.stats = char.stats.slice(0, dimensions);
+                }
+            });
+        }
+
         this.activeSeries.settings.dimensions = dimensions;
         this.activeSeries.settings.tiers = tiers;
         this.save();
