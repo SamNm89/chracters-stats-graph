@@ -1,10 +1,10 @@
-# Character Stats Graph 📊
+# Character Stats Graph
 
 A modern, visually stunning radar chart visualizer for character statistics. Build your own rosters, customize stat categories, and visualize strengths and weaknesses with an interactive spider graph.
 
-🔗 **Live Demo:** [https://samnm89.github.io/chracters-stats-graph/](https://samnm89.github.io/chracters-stats-graph/)
+**try it in:** [https://samnm89.github.io/chracters-stats-graph/](https://samnm89.github.io/chracters-stats-graph/)
 
-## ✨ Features
+## Features
 
 - **Dynamic Stats Builder**: Interactive settings menu to add or remove stats between categories without losing data.
 - **Multi-Series Support**: Organize characters into different series (e.g., Anime, RPG Party, etc.).
@@ -16,8 +16,3 @@ A modern, visually stunning radar chart visualizer for character statistics. Bui
 
 - **Arrow Up / Down**: Fast navigate and cycle through characters in the current series.
 
-## 🛠️ Built With
-
-- **Vanilla Javascript**: Optimized for performance and `file://` compatibility.
-- **SVG Engine**: Custom-built radar chart rendering with smooth polygon interpolation.
-- **CSS Variables**: Easy-to-theme design system.
