@@ -869,8 +869,12 @@ input:focus {
     overflow-y: auto;
     padding-right: 12px;
     margin: 10px 0 25px 0;
-    scrollbar-width: thin;
-    scrollbar-color: var(--primary) transparent;
+
+    /* Standardized Scrollbar (Firefox / Modern Chrome/Safari) */
+    @supports (scrollbar-width: thin) {
+        scrollbar-width: thin;
+        scrollbar-color: var(--primary) transparent;
+    }
 }
 
 .import-review-list::-webkit-scrollbar {
