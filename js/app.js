@@ -677,16 +677,23 @@ const App = {
         els.importJsonBtn.onclick = () => els.importInput.click();
         els.importInput.onchange = (e) => this.importData(e);
 
-        // Outside Click Handlers (Clicking empty space to close)
+        // Outside Click Handlers (Strict: Start and End on backdrop to close)
         [els.settingsModal, els.seriesModal, els.dataModal].forEach(modal => {
-            modal.onclick = (e) => {
-                if (e.target === modal) {
+            let startedOnBackdrop = false;
+
+            modal.onmousedown = (e) => {
+                startedOnBackdrop = (e.target === modal);
+            };
+
+            modal.onmouseup = (e) => {
+                if (startedOnBackdrop && e.target === modal) {
                     if (modal === els.settingsModal) {
                         this.closeSettingsModal();
                     } else {
                         modal.classList.add('hidden');
                     }
                 }
+                startedOnBackdrop = false; // reset
             };
         });
         this.settingsDraft = null;
@@ -694,6 +701,20 @@ const App = {
 
         // Keyboard Navigation
         window.addEventListener('keydown', (e) => {
+            // Global Escape to close active modals
+            if (e.key === 'Escape') {
+                const activeModals = [els.settingsModal, els.seriesModal, els.dataModal];
+                activeModals.forEach(modal => {
+                    if (!modal.classList.contains('hidden')) {
+                        if (modal === els.settingsModal) {
+                            this.closeSettingsModal();
+                        } else {
+                            modal.classList.add('hidden');
+                        }
+                    }
+                });
+            }
+
             if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
                 // Don't navigate if user is typing in an input
                 if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
