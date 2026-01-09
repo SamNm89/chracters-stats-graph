@@ -552,6 +552,13 @@ input:focus {
     /* Context for absolute children if needed */
 }
 
+.modal-subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: -15px;
+    margin-bottom: 20px;
+}
+
 .modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -593,37 +600,67 @@ input:focus {
     color: #ef4444;
 }
 
-.sync-btn-fixed {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 100;
-
+.cloud-btn {
+    width: 40px;
+    height: 40px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid #10b981;
+    color: #10b981;
+    font-size: 1.2rem;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 8px;
-
-    background: rgba(16, 185, 129, 0.1);
-    /* Subtle green bg */
-    border: 1px solid #10b981;
-    /* Emerald Green Stripe */
-    color: #10b981;
-    font-weight: 600;
-    font-family: var(--font-main);
-
-    padding: 6px 12px;
-    font-size: 0.85rem;
-    border-radius: 16px;
-    cursor: pointer;
+    justify-content: center;
+    transition: all 0.2s;
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    transition: all 0.2s;
 }
 
-.sync-btn-fixed:hover {
+.cloud-btn:hover {
     background: rgba(16, 185, 129, 0.2);
     box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
-    transform: translateY(-1px);
+    transform: scale(1.05);
+}
+
+/* Data Modal Specifics */
+.data-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin: 10px 0;
+}
+
+.data-option-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    padding: 20px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.data-option-card h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.data-option-card p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.modal-actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+#import-input {
+    display: none;
 }
 
 /* Settings Preview */

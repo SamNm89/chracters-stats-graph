@@ -1,18 +1,24 @@
 # Character Stats Graph
 
-A modern, visually stunning radar chart visualizer for character statistics. Build your own rosters, customize stat categories, and visualize strengths and weaknesses with an interactive spider graph.
+A modern radar chart visualizer for character statistics. Build rosters, customize categories, and visualize strengths with an interactive spider graph.
 
-**try it in:** [https://samnm89.github.io/chracters-stats-graph/](https://samnm89.github.io/chracters-stats-graph/)
+**Try it here:** [https://samnm89.github.io/chracters-stats-graph/](https://samnm89.github.io/chracters-stats-graph/)
 
 ## Features
 
-- **Dynamic Stats Builder**: Interactive settings menu to add or remove stats between categories without losing data.
-- **Multi-Series Support**: Organize characters into different series (e.g., Anime, RPG Party, etc.).
-- **Glassmorphism UI**: Beautiful, premium design with blur effects and smooth animations.
-- **Character Portraits**: Upload custom image URLs for each character.
-- **Google Drive Sync**: Backup and sync your data across devices using your own Google Drive storage.
+- **Dynamic Stats Builder**: Add or remove stats between categories without losing character data.
+- **Multi-Series Support**: Organize characters into different series (Anime, Games, RPGs).
+- **Cinematic Visuals**: Support for character portraits and full-window background images.
+- **Auto-Optimization**: High-res images are automatically compressed and resized for fast loading.
+- **Data Management**: Sync with Google Drive or Export/Import data as JSON files.
+- **Keyboard Navigation**: Cycle through characters using Arrow Up/Down.
 
-## ⌨️ Keyboard Shortcuts
+## Quick Guide
 
-- **Arrow Up / Down**: Fast navigate and cycle through characters in the current series.
+1. **Create a Series**: Use the dropdown at the top of the sidebar to create or switch between series.
+2. **Add Characters**: Click the green **+** button to create a new entry.
+3. **Configure Stats**: Click the gear icon (**⚙️**) to choose how many stats your series has and name them.
+4. **Customize Visuals**: Open a character's editor (✎) to add a portrait link or a background image.
+5. **Sync & Backup**: Click the cloud icon (**☁️**) in the top right to link Google Drive or download a JSON backup.
 
+*Note: Visual guide with photos and videos will be added here soon.*

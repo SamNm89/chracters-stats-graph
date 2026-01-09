@@ -13,8 +13,8 @@
 
 <body>
     <div class="app-container">
-        <button id="sync-btn" class="glass-btn sync-btn-fixed">
-            ☁️ Sync with Drive
+        <button id="open-data-modal-btn" class="sync-btn-fixed cloud-btn" title="Storage & Sync">
+            ☁️
         </button>
 
         <!-- Sidebar: Character List -->
@@ -121,8 +121,37 @@
         </div>
     </div>
 
-    <!-- Goole API Scripts (Loaded dynamically in JS, but placeholder here for clarity if needed) -->
+    <div id="data-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h2>Data Management</h2>
+            <p class="modal-subtitle">Sync your data to the cloud or manage local backups.</p>
 
+            <div class="data-options">
+                <div class="data-option-card">
+                    <h4>☁️ Google Drive Sync</h4>
+                    <p>Backup and sync your data across devices.</p>
+                    <button id="sync-btn" class="primary-btn">Connect & Sync</button>
+                </div>
+
+                <div class="data-option-card">
+                    <h4>📥 Local Backup</h4>
+                    <p>Download your data as a JSON file or restore from one.</p>
+                    <div class="modal-actions-grid">
+                        <button id="export-json-btn" class="secondary-btn">Export JSON</button>
+                        <button id="import-json-btn" class="secondary-btn">Import JSON</button>
+                    </div>
+                </div>
+            </div>
+
+            <input type="file" id="import-input" accept=".json" title="Import JSON File">
+
+            <div class="modal-actions">
+                <button id="close-data-modal" class="secondary-btn modal-footer-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google API Scripts -->
     <script src="js/app.js"></script>
 </body>
 

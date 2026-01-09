@@ -523,6 +523,12 @@ const els = {
     addBtn: document.getElementById('add-char-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     syncBtn: document.getElementById('sync-btn'),
+    dataModal: document.getElementById('data-modal'),
+    openDataModalBtn: document.getElementById('open-data-modal-btn'),
+    closeDataModal: document.getElementById('close-data-modal'),
+    exportJsonBtn: document.getElementById('export-json-btn'),
+    importJsonBtn: document.getElementById('import-json-btn'),
+    importInput: document.getElementById('import-input'),
     // Settings    // Modals
     settingsModal: document.getElementById('settings-modal'),
     settingVertices: document.getElementById('setting-vertices'),
@@ -645,7 +651,16 @@ const App = {
             els.settingsModal.classList.add('hidden');
         };
 
-        els.syncBtn.onclick = () => this.drive.handleAuthClick();
+        els.syncBtn.onclick = () => {
+            this.drive.handleAuthClick();
+        };
+
+        // Data Management Modal
+        els.openDataModalBtn.onclick = () => els.dataModal.classList.remove('hidden');
+        els.closeDataModal.onclick = () => els.dataModal.classList.add('hidden');
+        els.exportJsonBtn.onclick = () => this.exportData();
+        els.importJsonBtn.onclick = () => els.importInput.click();
+        els.importInput.onchange = (e) => this.importData(e);
 
         // Keyboard Navigation
         window.addEventListener('keydown', (e) => {
@@ -974,6 +989,38 @@ const App = {
 
         // Use weserv.nl as the transparent optimizer
         return `https://images.weserv.nl/?${params.toString()}`;
+    },
+
+    exportData() {
+        const dataStr = JSON.stringify(this.state.data, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+        const exportFileDefaultName = `csg_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    },
+
+    importData(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedData = JSON.parse(event.target.result);
+                if (confirm("This will overwrite all current characters and series. Are you sure?")) {
+                    this.state.data = importedData;
+                    this.state.save();
+                    location.reload(); // Refresh to apply everything cleanly
+                }
+            } catch (err) {
+                alert("Invalid JSON file.");
+            }
+        };
+        reader.readAsText(file);
     }
 };
 
