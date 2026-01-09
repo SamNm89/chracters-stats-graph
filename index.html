@@ -97,15 +97,14 @@
                 <input type="number" id="setting-vertices" min="3" max="10" value="3">
             </label>
 
-            <div id="settings-preview-container"
-                style="display:flex; flex-direction:column; align-items:center; margin: 10px 0; gap:10px;">
+            <div id="settings-preview-container">
                 <!-- Mini Graph -->
-                <svg id="settings-mini-graph" width="150" height="150"
-                    style="background:rgba(0,0,0,0.2); border-radius:8px;"></svg>
-                <!-- Dynamic Inputs -->
-                <div id="settings-stat-names"
-                    style="width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:5px;"></div>
+                <svg id="settings-mini-graph" width="200" height="200" style="background:transparent;"></svg>
+                <!-- Dynamic Inputs Wrapper (Inputs injected directly into container) -->
             </div>
+
+            <!-- Hidden inputs container for data collection if needed, or we select by class -->
+            <div id="settings-stat-names" style="display:none"></div>
 
             <label>
                 Tiers (comma separated, low to high)

@@ -425,9 +425,11 @@ const App = {
             const dim = parseInt(els.settingVertices.value);
             const tiers = els.settingTiers.value.split(',').map(s => s.trim()).filter(Boolean);
 
-            // Collect Stat Names
+            // Collect Stat Names from the absolutely positioned inputs
             const names = [];
-            els.settingStatNames.querySelectorAll('input').forEach(inp => names.push(inp.value.trim() || inp.placeholder));
+            document.querySelectorAll('#settings-preview-container .stat-name-input-wrapper input').forEach(inp => {
+                names.push(inp.value.trim() || inp.placeholder);
+            });
 
             this.state.updateSettings(dim, tiers, names);
             this.refreshGraph(); // Re-init graph for new settings
@@ -438,24 +440,56 @@ const App = {
     },
 
     renderSettingsPreview(dim) {
-        // Draw Mini Graph
-        // Mock simple settings for preview
-        this.miniGraph.init({ dimensions: dim, tiers: [''] });
-        this.miniGraph.drawGrid(); // Re-draw
+        // Draw Mini Graph - Larger Scale
+        this.miniGraph.width = 200;
+        this.miniGraph.height = 200;
+        this.miniGraph.center = { x: 100, y: 100 };
+        this.miniGraph.radius = 80;
+        this.miniGraph.svg.setAttribute('viewBox', '0 0 200 200');
 
-        // Render Inputs
-        els.settingStatNames.innerHTML = '';
+        this.miniGraph.init({ dimensions: dim, tiers: [''] }); // No inner rings needed really, just shape
+        this.miniGraph.drawGrid();
+
+        // Render Inputs Positioned Around Graph
+        const container = document.getElementById('settings-preview-container');
+        // Clear old inputs (keep svg)
+        container.querySelectorAll('.stat-name-input-wrapper').forEach(el => el.remove());
+
+        // Use a hidden container reference or just re-select later for saving
+        // For logic simplicity, we'll store refs in a temporary way or query DOM on save.
+
         const existingNames = this.state.settings.statNames || [];
+        const radius = 130; // Distance from center for inputs (Graph radius is 80)
+        const center = { x: 300, y: 200 }; // Center of the 600px/400px container? 
+        // Wait, container is flex center. The SVG is 200x200.
+        // Let's position relative to the container center.
+        // Container width is ~540px (padding 30x2). Height 400px.
+        // We'll calculate offsets from 50% 50%.
+
+        const angleStep = (Math.PI * 2) / dim;
+        const startAngle = -Math.PI / 2;
 
         for (let i = 0; i < dim; i++) {
+            const angle = startAngle + (i * angleStep);
+
+            // Calculate Position (Relative to center of container)
+            // x = cos(angle) * r, y = sin(angle) * r
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'stat-name-input-wrapper';
+            // CSS Translate handles centering (-50%), so we just set left/top to center + offset
+            wrapper.style.left = `calc(50% + ${x}px)`;
+            wrapper.style.top = `calc(50% + ${y}px)`;
+
             const inp = document.createElement('input');
             inp.type = "text";
             inp.placeholder = `Stat ${i + 1}`;
-            // Pre-fill if exists, else empty
             if (i < existingNames.length) inp.value = existingNames[i];
 
-            inp.style.fontSize = "0.8rem";
-            els.settingStatNames.appendChild(inp);
+            wrapper.appendChild(inp);
+            container.appendChild(wrapper);
         }
     },
 
