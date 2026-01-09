@@ -518,6 +518,8 @@ const els = {
     saveBtn: document.getElementById('save-char-btn'),
     deleteBtn: document.getElementById('delete-char-btn'),
     closeEditor: document.getElementById('close-editor'),
+    editBg: document.getElementById('edit-bg'),
+    graphContainer: document.getElementById('graph-container'),
     addBtn: document.getElementById('add-char-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     syncBtn: document.getElementById('sync-btn'),
@@ -791,11 +793,14 @@ const App = {
         chars.forEach(char => {
             const div = document.createElement('div');
             div.className = `char-item ${this.state.activeCharId === char.id ? 'active' : ''}`;
-            const imgUrl = char.image || this.getPlaceholder(char.name);
+            const portraitUrl = this.getOptimizedUrl(char.image, { w: 100, h: 100, fit: 'cover' }) || this.getPlaceholder(char.name);
 
             div.innerHTML = `
                 <div class="char-info-row" style="display:flex; align-items:center; gap:10px; flex:1">
-                    <img src="${imgUrl}" class="char-thumb">
+                    <img src="${portraitUrl}" 
+                         class="char-thumb" 
+                         loading="lazy" 
+                         onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(char.name)}&background=random'">
                     <span>${char.name}</span>
                 </div>
                 <div class="char-actions-row">
@@ -842,7 +847,26 @@ const App = {
         const char = this.state.getCharacter(id);
         if (char) {
             els.activeName.innerText = char.name;
-            els.activeImageContainer.innerHTML = char.image ? `<img src="${char.image}" class="portrait-img">` : '';
+
+            // Portrait Optimization (Max 400px for high DPI)
+            const portraitUrl = this.getOptimizedUrl(char.image, { w: 400, h: 400, fit: 'cover' }) ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(char.name)}&size=200&background=random`;
+
+            els.activeImageContainer.innerHTML = `<img src="${portraitUrl}" 
+                                                       class="portrait-img" 
+                                                       loading="lazy" 
+                                                       onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(char.name)}&size=200&background=random'">`;
+
+            // Background Optimization (Higher width, lower quality for performance)
+            if (char.bgImage) {
+                const optimizedBg = this.getOptimizedUrl(char.bgImage, { w: 1280, q: 60 });
+                els.graphContainer.style.backgroundImage = `url('${optimizedBg}')`;
+                els.graphContainer.classList.add('has-bg');
+            } else {
+                els.graphContainer.style.backgroundImage = 'none';
+                els.graphContainer.classList.remove('has-bg');
+            }
+
             this.graph.animateTo(char.stats);
             if (els.editCurrentBtn) els.editCurrentBtn.classList.remove('hidden');
         }
@@ -856,9 +880,11 @@ const App = {
             const char = this.state.getCharacter(id);
             els.editName.value = char.name;
             els.editImage.value = char.image || '';
+            els.editBg.value = char.bgImage || '';
         } else {
             els.editName.value = 'New Character';
             els.editImage.value = '';
+            els.editBg.value = '';
         }
     },
 
@@ -906,6 +932,7 @@ const App = {
             id: this.editingId,
             name: els.editName.value || 'Unnamed',
             image: els.editImage.value,
+            bgImage: els.editBg.value,
             stats: stats
         };
         const savedId = this.state.saveCharacter(data);
@@ -922,7 +949,31 @@ const App = {
     },
 
     getPlaceholder(name) {
-        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=64`;
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+    },
+
+    /**
+     * Proxies external URLs through images.weserv.nl for:
+     * 1. Automatic compression (WebP)
+     * 2. Resizing to exact display dimensions
+     * 3. Performance (Fast CDN loading)
+     */
+    getOptimizedUrl(url, options = {}) {
+        if (!url || typeof url !== 'string') return null;
+        if (!url.startsWith('http')) return url; // Don't proxy base64 or relative paths
+
+        // Strip protocol/leading slashes for weserv
+        const cleanUrl = url.replace(/^https?:\/\//, '');
+
+        const params = new URLSearchParams({
+            url: cleanUrl,
+            noproxy: '1', // Attempt to use original if possible? No, weserv needs to proxy.
+            default: url, // Fallback to original if proxy fails
+            ...options
+        });
+
+        // Use weserv.nl as the transparent optimizer
+        return `https://images.weserv.nl/?${params.toString()}`;
     }
 };
 
