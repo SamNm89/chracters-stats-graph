@@ -1,4 +1,5 @@
 # Character Stats Graph
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
 A modern radar chart visualizer for character statistics. Build rosters, customize categories, and visualize strengths with an interactive spider graph.
 
@@ -28,3 +29,7 @@ A modern radar chart visualizer for character statistics. Build rosters, customi
 - **Local Storage**: Your character data, stats, and series are stored locally in your browser's `localStorage`. No data is sent to or stored on our servers.
 - **Privacy**: Since all processing and storage happen on your own device, your data remains private and accessible only to you.
 - **Cloud Sync**: If you choose to use the Google Drive Sync feature, your data is stored in your personal Google Drive account. We do not have access to your files.
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
