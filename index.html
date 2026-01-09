@@ -93,6 +93,17 @@
                 Stats Count (Vertices)
                 <input type="number" id="setting-vertices" min="3" max="10" value="3">
             </label>
+
+            <div id="settings-preview-container"
+                style="display:flex; flex-direction:column; align-items:center; margin: 10px 0; gap:10px;">
+                <!-- Mini Graph -->
+                <svg id="settings-mini-graph" width="150" height="150"
+                    style="background:rgba(0,0,0,0.2); border-radius:8px;"></svg>
+                <!-- Dynamic Inputs -->
+                <div id="settings-stat-names"
+                    style="width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:5px;"></div>
+            </div>
+
             <label>
                 Tiers (comma separated, low to high)
                 <input type="text" id="setting-tiers" value="F,B,A,S">

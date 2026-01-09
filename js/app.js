@@ -122,7 +122,7 @@ class State {
 
     get settings() { return this.activeSeries.settings; }
 
-    updateSettings(dimensions, tiers) {
+    updateSettings(dimensions, tiers, statNames) {
         // If dimensions changed, we need to migrate all characters in this series
         const oldDim = this.activeSeries.settings.dimensions;
 
@@ -144,6 +144,7 @@ class State {
 
         this.activeSeries.settings.dimensions = dimensions;
         this.activeSeries.settings.tiers = tiers;
+        if (statNames) this.activeSeries.settings.statNames = statNames;
         this.save();
     }
 
@@ -334,12 +335,16 @@ const els = {
     addBtn: document.getElementById('add-char-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     syncBtn: document.getElementById('sync-btn'),
-    // Settings Modal
+    // Settings    // Modals
     settingsModal: document.getElementById('settings-modal'),
     settingVertices: document.getElementById('setting-vertices'),
     settingTiers: document.getElementById('setting-tiers'),
     saveSettingsBtn: document.getElementById('save-settings-btn'),
     cancelSettingsBtn: document.getElementById('cancel-settings-btn'),
+    // Settings Preview
+    settingMiniGraph: document.getElementById('settings-mini-graph'),
+    settingStatNames: document.getElementById('settings-stat-names'),
+
     // Series
     seriesBtn: document.getElementById('series-btn'),
     seriesNameLabel: document.getElementById('current-series-name'),
@@ -356,6 +361,14 @@ const App = {
     init() {
         this.state = new State();
         this.graph = new Graph(els.svg);
+        this.miniGraph = new Graph(els.settingMiniGraph);
+        // Mini graph needs smaller scale
+        this.miniGraph.width = 150;
+        this.miniGraph.height = 150;
+        this.miniGraph.center = { x: 75, y: 75 };
+        this.miniGraph.radius = 60;
+        this.miniGraph.svg.setAttribute('viewBox', '0 0 150 150');
+
         this.editingId = null;
 
         this.bindEvents();
@@ -395,18 +408,55 @@ const App = {
         // Settings
         els.settingsBtn.onclick = () => {
             // Load ACTIVE series settings
-            els.settingVertices.value = this.state.settings.dimensions;
-            els.settingTiers.value = this.state.settings.tiers.join(',');
+            const s = this.state.settings;
+            els.settingVertices.value = s.dimensions;
+            els.settingTiers.value = s.tiers.join(',');
+            this.renderSettingsPreview(s.dimensions);
             els.settingsModal.classList.remove('hidden');
         };
+
+        els.settingVertices.oninput = (e) => {
+            const val = parseInt(e.target.value);
+            if (val >= 3 && val <= 10) this.renderSettingsPreview(val);
+        };
+
         els.cancelSettingsBtn.onclick = () => els.settingsModal.classList.add('hidden');
         els.saveSettingsBtn.onclick = () => {
             const dim = parseInt(els.settingVertices.value);
             const tiers = els.settingTiers.value.split(',').map(s => s.trim()).filter(Boolean);
-            this.state.updateSettings(dim, tiers);
+
+            // Collect Stat Names
+            const names = [];
+            els.settingStatNames.querySelectorAll('input').forEach(inp => names.push(inp.value.trim() || inp.placeholder));
+
+            this.state.updateSettings(dim, tiers, names);
             this.refreshGraph(); // Re-init graph for new settings
             els.settingsModal.classList.add('hidden');
         };
+
+        els.syncBtn.onclick = () => this.drive.handleAuthClick();
+    },
+
+    renderSettingsPreview(dim) {
+        // Draw Mini Graph
+        // Mock simple settings for preview
+        this.miniGraph.init({ dimensions: dim, tiers: [''] });
+        this.miniGraph.drawGrid(); // Re-draw
+
+        // Render Inputs
+        els.settingStatNames.innerHTML = '';
+        const existingNames = this.state.settings.statNames || [];
+
+        for (let i = 0; i < dim; i++) {
+            const inp = document.createElement('input');
+            inp.type = "text";
+            inp.placeholder = `Stat ${i + 1}`;
+            // Pre-fill if exists, else empty
+            if (i < existingNames.length) inp.value = existingNames[i];
+
+            inp.style.fontSize = "0.8rem";
+            els.settingStatNames.appendChild(inp);
+        }
     },
 
     refreshSeriesUI() {
@@ -526,15 +576,18 @@ const App = {
         els.statSliders.innerHTML = '';
         const count = this.state.settings.dimensions;
         const tiers = this.state.settings.tiers;
+        const statNames = this.state.settings.statNames || [];
         const char = id ? this.state.getCharacter(id) : null;
         const stats = char ? char.stats : new Array(count).fill(Math.floor(tiers.length / 2));
 
         for (let i = 0; i < count; i++) {
             const val = stats[i] !== undefined ? stats[i] : 0;
+            const labelName = statNames[i] || `Stat ${i + 1}`;
+
             const w = document.createElement('div');
             w.className = 'stat-control';
             w.innerHTML = `
-                <label>Stat ${i + 1} <span id="s-lbl-${i}" class="tier-badge">${tiers[val] || ''}</span></label>
+                <label>${labelName} <span id="s-lbl-${i}" class="tier-badge">${tiers[val] || ''}</span></label>
                 <input type="range" data-idx="${i}" min="0" max="${tiers.length - 1}" value="${val}">
             `;
             els.statSliders.appendChild(w);
