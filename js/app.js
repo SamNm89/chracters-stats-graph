@@ -348,6 +348,8 @@ const els = {
     newSeriesInput: document.getElementById('new-series-name'),
     createSeriesBtn: document.getElementById('create-series-btn'),
     closeSeriesModal: document.getElementById('close-series-modal'),
+    // Edit Current
+    editCurrentBtn: document.getElementById('edit-current-btn'),
 };
 
 const App = {
@@ -361,6 +363,13 @@ const App = {
     },
 
     bindEvents() {
+        // Edit Current
+        if (els.editCurrentBtn) {
+            els.editCurrentBtn.onclick = () => {
+                if (this.state.activeCharId) this.openEditor(this.state.activeCharId);
+            };
+        }
+
         // Series
         els.seriesBtn.onclick = () => {
             this.renderSeriesList();
@@ -454,6 +463,7 @@ const App = {
         els.activeName.innerText = "Select Character";
         els.activeImageContainer.innerHTML = '';
         this.graph.animateTo(new Array(this.state.settings.dimensions).fill(0));
+        if (els.editCurrentBtn) els.editCurrentBtn.classList.add('hidden');
     },
 
     selectCharacter(id) {
@@ -464,6 +474,7 @@ const App = {
             els.activeName.innerText = char.name;
             els.activeImageContainer.innerHTML = char.image ? `<img src="${char.image}" class="portrait-img">` : '';
             this.graph.animateTo(char.stats);
+            if (els.editCurrentBtn) els.editCurrentBtn.classList.remove('hidden');
         }
     },
 
