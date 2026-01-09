@@ -1,3 +1,76 @@
+/* Existing Styles... (Keep all) plus: */
+
+/* Series Switcher */
+.series-select-container {
+    flex: 1;
+    margin-right: 15px;
+}
+
+.series-btn {
+    background: transparent;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    width: 100%;
+    text-align: left;
+}
+
+.series-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.series-btn .chevron {
+    font-size: 0.8rem;
+    opacity: 0.6;
+    margin-left: auto;
+}
+
+/* Series List in Modal */
+.series-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.series-option {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 12px;
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.series-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.series-option.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--primary);
+    color: white;
+}
+
+.series-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* --- Rest of original CSS --- */
 :root {
     --bg-dark: #0f0f13;
     --bg-panel: rgba(30, 30, 40, 0.7);
@@ -63,10 +136,8 @@ body {
     margin-bottom: 20px;
 }
 
-.sidebar-header h2 {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
+.actions {
+    display: flex;
 }
 
 .icon-btn {
@@ -163,7 +234,6 @@ body {
     transition: color 0.3s;
 }
 
-/* When active, highlight */
 .graph-container:hover .character-info-overlay h1 {
     color: rgba(255, 255, 255, 0.4);
 }
@@ -185,13 +255,11 @@ body {
 .graph-web {
     fill: none;
     stroke: rgba(255, 255, 255, 0.05);
-    /* very subtle inner rings (F, B, A) */
     stroke-width: 1;
 }
 
 .graph-web.outer {
     stroke: rgba(255, 255, 255, 0.2);
-    /* Outer border (S) */
 }
 
 .graph-axis {
@@ -204,7 +272,6 @@ body {
     stroke: var(--primary);
     stroke-width: 2;
     transition: none;
-    /* JS handles animation */
     filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
 }
 
