@@ -153,8 +153,15 @@
 
             <div class="data-options">
                 <div class="data-option-card">
-                    <h4>☁️ Google Drive Sync</h4>
+                    <div class="sync-card-header">
+                        <h4>☁️ Google Drive Sync</h4>
+                        <div id="sync-status-indicator" class="sync-indicator" title="Sync Status"></div>
+                    </div>
                     <p>Backup and sync your data across devices.</p>
+                    <div id="sync-details" class="sync-details hidden">
+                        <span class="sync-label">Last Sync:</span>
+                        <span id="last-sync-time" class="sync-time">Never</span>
+                    </div>
                     <button id="sync-btn" class="primary-btn">Connect & Sync</button>
                 </div>
 

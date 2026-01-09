@@ -503,6 +503,11 @@ class GoogleDriveSync {
             headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
             body: form
         });
+
+        // Update local state for sync tracking
+        localStorage.setItem('csg_last_sync', new Date().toISOString());
+        localStorage.setItem('csg_is_dirty', 'false');
+
         console.log('Saved to Drive');
     }
 }
@@ -531,6 +536,9 @@ const els = {
     exportJsonBtn: document.getElementById('export-json-btn'),
     importJsonBtn: document.getElementById('import-json-btn'),
     importInput: document.getElementById('import-input'),
+    syncStatusIndicator: document.getElementById('sync-status-indicator'),
+    syncDetails: document.getElementById('sync-details'),
+    lastSyncTime: document.getElementById('last-sync-time'),
     // Settings    // Modals
     settingsModal: document.getElementById('settings-modal'),
     settingVertices: document.getElementById('setting-vertices'),
@@ -570,9 +578,11 @@ const App = {
         // Initialize Drive Sync
         this.drive = new GoogleDriveSync({
             onSignIn: () => {
-                alert('Synced with Google Drive!');
-                // Auto-upload current state on connect
-                this.drive.saveToCloud(this.state.data);
+                this.updateSyncUI();
+                // Auto-upload current state on connect if dirty
+                if (this.isDataDirty()) {
+                    this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
+                }
             }
         });
         this.drive.init();
@@ -680,12 +690,25 @@ const App = {
             this.drive.handleAuthClick();
         };
 
-        // Data Management Modal
-        els.openDataModalBtn.onclick = () => els.dataModal.classList.remove('hidden');
+        els.importInput.onchange = (e) => this.importData(e);
+
+        // Auto-sync listener (Mark as dirty on change)
+        const originalSave = this.state.save.bind(this.state);
+        this.state.save = () => {
+            originalSave();
+            localStorage.setItem('csg_is_dirty', 'true');
+            this.triggerAutoSync();
+        };
+
+        // UI Refresh on Modal Open
+        els.openDataModalBtn.onclick = () => {
+            this.updateSyncUI();
+            els.dataModal.classList.remove('hidden');
+        };
+
         els.closeDataModal.onclick = () => els.dataModal.classList.add('hidden');
         els.exportJsonBtn.onclick = () => this.exportData();
         els.importJsonBtn.onclick = () => els.importInput.click();
-        els.importInput.onchange = (e) => this.importData(e);
 
         // Outside Click Handlers (Strict: Start and End on backdrop to close)
         [els.settingsModal, els.seriesModal, els.dataModal, els.importReviewModal].forEach(modal => {
@@ -1157,6 +1180,51 @@ const App = {
         linkElement.setAttribute('href', dataUri);
         linkElement.setAttribute('download', exportFileDefaultName);
         linkElement.click();
+    },
+
+    isDataDirty() {
+        return localStorage.getItem('csg_is_dirty') === 'true';
+    },
+
+    triggerAutoSync() {
+        if (window.gapi && gapi.client && gapi.client.getToken() && this.isDataDirty()) {
+            console.log('Auto-syncing to cloud...');
+            this.drive.saveToCloud(this.state.data).then(() => {
+                this.updateSyncUI();
+            });
+        }
+    },
+
+    updateSyncUI() {
+        const token = window.gapi && gapi.client && gapi.client.getToken();
+        const lastSync = localStorage.getItem('csg_last_sync');
+        const isDirty = this.isDataDirty();
+
+        if (token) {
+            els.syncDetails.classList.remove('hidden');
+            els.syncBtn.innerText = 'Sync Active';
+            els.syncBtn.classList.add('secondary-btn');
+            els.syncBtn.classList.remove('primary-btn');
+
+            if (lastSync) {
+                const date = new Date(lastSync);
+                els.lastSyncTime.innerText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            if (isDirty) {
+                els.syncStatusIndicator.className = 'sync-indicator outdated';
+                els.syncStatusIndicator.title = 'Local changes pending sync';
+            } else {
+                els.syncStatusIndicator.className = 'sync-indicator synced';
+                els.syncStatusIndicator.title = 'Data is up to date in Drive';
+            }
+        } else {
+            els.syncDetails.classList.add('hidden');
+            els.syncBtn.innerText = 'Connect & Sync';
+            els.syncBtn.classList.remove('secondary-btn');
+            els.syncBtn.classList.add('primary-btn');
+            els.syncStatusIndicator.className = 'sync-indicator';
+        }
     },
 
     exportSeries(id) {

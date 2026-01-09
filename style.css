@@ -1065,3 +1065,50 @@ input:focus {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
+/* Sync Status Indicators */
+.sync-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sync-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4b5563; /* Gray default */
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.sync-indicator.synced {
+    background: #10b981; /* Green */
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.sync-indicator.outdated {
+    background: #f97316; /* Orange */
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+}
+
+.sync-details {
+    display: flex;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: -5px;
+    padding-bottom: 5px;
+    transition: opacity 0.3s;
+}
+
+.sync-details.hidden {
+    display: none;
+}
+
+.sync-label {
+    font-weight: 600;
+}
+
+.sync-time {
+    font-family: monospace;
+}
