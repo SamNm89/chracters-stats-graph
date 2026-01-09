@@ -1,0 +1,31 @@
+/* Existing styles... append: */
+
+.sync-btn-fixed {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    background: rgba(16, 185, 129, 0.1); /* Subtle green bg */
+    border: 1px solid #10b981; /* Emerald Green Stripe */
+    color: #10b981;
+    font-weight: 600;
+    font-family: var(--font-main);
+    
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.2s;
+}
+
+.sync-btn-fixed:hover {
+    background: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    transform: translateY(-1px);
+}
