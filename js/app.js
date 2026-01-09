@@ -202,23 +202,21 @@ class State {
 class Graph {
     constructor(svgElement) {
         this.svg = svgElement;
-        this.width = 500;
-        this.height = 500;
-        this.center = { x: 250, y: 250 };
+        this.width = 800;  // Increased internal coordinate space
+        this.height = 800;
+        this.center = { x: 400, y: 400 };
         this.radius = 180;
         this.settings = null;
         this.currentStats = [];
-        this.svg.setAttribute('viewBox', `0 0 500 500`);
+        this.svg.setAttribute('viewBox', `0 0 800 800`);
     }
 
     init(settings) {
         this.settings = settings;
         this.dimensions = settings.dimensions;
 
-        // Adjust radius to fit labels if this is the main graph
-        if (this.width > 300) {
-            this.radius = 160;
-        }
+        // Use smaller radius relative to 800px space to ensure labels fit
+        this.radius = this.width > 300 ? 220 : 60;
 
         this.currentStats = new Array(settings.dimensions).fill(0);
         this.drawGrid();
@@ -269,8 +267,10 @@ class Graph {
 
         const statNames = this.settings.statNames || [];
         const tiers = this.settings.tiers;
-        const radiusName = this.radius + 45; // Name further out
-        const radiusTier = this.radius + 20; // Tier closer
+
+        // Increased distance between Tier and Name to prevent overlap on horizontal axes
+        const radiusTier = this.radius + 15;
+        const radiusName = this.radius + 65;
 
         for (let i = 0; i < this.dimensions; i++) {
             const angle = -Math.PI / 2 + (Math.PI * 2 * i) / this.dimensions;
@@ -279,17 +279,23 @@ class Graph {
             const nameLabel = statNames[i] || `Stat ${i + 1}`;
 
             // Helper to anchor text based on angle
-            const align = (Math.abs(Math.cos(angle)) < 0.1) ? 'middle' : (Math.cos(angle) > 0 ? 'start' : 'end');
-            const baseline = (Math.abs(Math.sin(angle)) < 0.1) ? 'middle' : (Math.sin(angle) > 0 ? 'hanging' : 'baseline');
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+
+            const align = (Math.abs(cos) < 0.1) ? 'middle' : (cos > 0 ? 'start' : 'end');
+            const baseline = (Math.abs(sin) < 0.1) ? 'middle' : (sin > 0 ? 'hanging' : 'baseline');
 
             // 1. Tier Label (Inner)
-            const tx = this.center.x + radiusTier * Math.cos(angle);
-            const ty = this.center.y + radiusTier * Math.sin(angle);
+            const tx = this.center.x + radiusTier * cos;
+            const ty = this.center.y + radiusTier * sin;
             this.drawText(tx, ty, tierLabel, this.labelsGroup, 'label-tier', align, baseline);
 
             // 2. Name Label (Outer)
-            const nx = this.center.x + radiusName * Math.cos(angle);
-            const ny = this.center.y + radiusName * Math.sin(angle);
+            // To prevent horizontal overlap with tier when labels are long on the sides:
+            // If we are strictly horizontal, we can offset the Name Y slightly.
+            const nx = this.center.x + radiusName * cos;
+            const ny = this.center.y + radiusName * sin;
+
             this.drawText(nx, ny, nameLabel, this.labelsGroup, 'label-name', align, baseline);
         }
     }
