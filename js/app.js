@@ -452,8 +452,38 @@ const App = {
             const div = document.createElement('div');
             div.className = `char-item ${this.state.activeCharId === char.id ? 'active' : ''}`;
             const imgUrl = char.image || this.getPlaceholder(char.name);
-            div.innerHTML = `<img src="${imgUrl}" class="char-thumb"><span>${char.name}</span>`;
+
+            div.innerHTML = `
+                <div class="char-info-row" style="display:flex; align-items:center; gap:10px; flex:1">
+                    <img src="${imgUrl}" class="char-thumb">
+                    <span>${char.name}</span>
+                </div>
+                <div class="char-actions-row">
+                    <button class="icon-btn xs-btn edit-btn" title="Edit">✎</button>
+                    <button class="icon-btn xs-btn del-btn" title="Delete">🗑️</button>
+                </div>
+            `;
+
+            // Selection Click (Main body)
             div.onclick = () => this.selectCharacter(char.id);
+
+            // Action Clicks (Prevent Selection)
+            const editBtn = div.querySelector('.edit-btn');
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.openEditor(char.id);
+            };
+
+            const delBtn = div.querySelector('.del-btn');
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete ${char.name}?`)) {
+                    this.state.deleteCharacter(char.id);
+                    if (this.state.activeCharId === char.id) this.renderEmptyState();
+                    this.renderList();
+                }
+            };
+
             els.charList.appendChild(div);
         });
     },

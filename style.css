@@ -429,3 +429,37 @@ input:focus {
     gap: 10px;
     margin-top: 10px;
 }
+
+/* Character List Actions */
+.char-item {
+    justify-content: space-between;
+    padding-right: 5px;
+}
+
+.char-actions-row {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.char-item:hover .char-actions-row,
+.char-item.active .char-actions-row {
+    opacity: 1;
+    /* Show on hover or active */
+}
+
+.xs-btn {
+    font-size: 0.8rem;
+    padding: 6px;
+    border-radius: 4px;
+}
+
+.xs-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.del-btn:hover {
+    color: #ef4444;
+}
