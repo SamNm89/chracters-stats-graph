@@ -531,3 +531,26 @@ input:focus {
     font-size: 0.8rem;
     padding: 4px;
 }
+
+/* Chart Labels */
+.chart-labels {
+    pointer-events: none;
+}
+
+.label-tier {
+    fill: var(--primary);
+    font-family: var(--font-main);
+    font-weight: 700;
+    font-size: 14px;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+}
+
+.label-name {
+    fill: #ffffff;
+    font-family: var(--font-main);
+    font-weight: 800;
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
