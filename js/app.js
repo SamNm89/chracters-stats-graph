@@ -752,9 +752,9 @@ const App = {
             const hitbox = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             hitbox.setAttribute('class', 'add-hitbox');
             hitbox.innerHTML = `
-                <circle cx="${100 + hx}" cy="${100 + hy}" r="15" fill="transparent" />
-                <circle class="add-hitbox-marker" cx="${100 + hx}" cy="${100 + hy}" r="6" />
-                <text x="${100 + hx}" y="${100 + hy + 4}" font-size="10" text-anchor="middle" fill="white" font-weight="bold">+</text>
+                <circle cx="${100 + hx}" cy="${100 + hy}" r="25" fill="transparent" style="cursor: pointer;" />
+                <circle class="add-hitbox-marker" cx="${100 + hx}" cy="${100 + hy}" r="8" />
+                <text x="${100 + hx}" y="${100 + hy + 4}" font-size="10" text-anchor="middle" fill="white" font-weight="bold" pointer-events="none">+</text>
             `;
             hitbox.onclick = () => {
                 if (this.settingsEditMode === 'add') {

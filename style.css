@@ -751,14 +751,29 @@ input:focus {
     transition: opacity 0.2s;
 }
 
+#settings-preview-container.mode-add .add-hitbox {
+    opacity: 0.4;
+    /* Slightly visible so users know where to click */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
 #settings-preview-container.mode-add .add-hitbox:hover {
     opacity: 1;
+}
+
+#settings-preview-container.mode-add .add-hitbox:hover .add-hitbox-marker {
+    transform: scale(1.4);
+    filter: drop-shadow(0 0 5px var(--primary));
 }
 
 .add-hitbox-marker {
     fill: var(--primary);
     stroke: white;
-    stroke-width: 1;
+    stroke-width: 1.5;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform-origin: center;
+    transform-box: fill-box;
 }
 
 /* Existing stat names should handle being clipped */
