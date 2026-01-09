@@ -739,6 +739,11 @@ input:focus {
     transform: translate(-50%, -50%) scale(1.1);
 }
 
+#settings-preview-container.mode-remove .stat-name-input-wrapper input {
+    border-color: #f97316;
+    /* Warning Orange */
+}
+
 #settings-preview-container.mode-remove .stat-name-input-wrapper:hover input {
     border-color: #ef4444;
     cursor: pointer;
