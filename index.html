@@ -108,7 +108,11 @@
             </div>
             <div class="series-actions">
                 <input type="text" id="new-series-name" placeholder="New Series Name">
-                <button id="create-series-btn" class="primary-btn">Create New</button>
+                <div class="series-actions-row">
+                    <button id="create-series-btn" class="primary-btn">Create New</button>
+                    <button id="import-series-btn" class="secondary-btn">Import Series</button>
+                </div>
+                <input type="file" id="import-series-input" accept=".json" title="Select Series JSON file">
             </div>
             <button id="close-series-modal" class="secondary-btn modal-footer-btn">Close</button>
         </div>
@@ -168,6 +172,27 @@
 
             <div class="modal-actions">
                 <button id="close-data-modal" class="secondary-btn modal-footer-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-review-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h2>Import Review</h2>
+            <p class="modal-subtitle">We found some conflicts. Choose how to merge them.</p>
+
+            <div id="import-review-list" class="import-review-list">
+                <!-- Conflicts will be listed here -->
+            </div>
+
+            <div class="merge-hint">
+                <p>Conflicts are identified by name. Characters in "Keep Local" will stay as they are. "Overwrite"
+                    replaces them with imported data.</p>
+            </div>
+
+            <div class="modal-actions">
+                <button id="confirm-import-btn" class="primary-btn">Complete Import</button>
+                <button id="cancel-import-btn" class="secondary-btn">Cancel</button>
             </div>
         </div>
     </div>

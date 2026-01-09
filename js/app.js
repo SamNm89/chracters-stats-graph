@@ -549,8 +549,16 @@ const els = {
     newSeriesInput: document.getElementById('new-series-name'),
     createSeriesBtn: document.getElementById('create-series-btn'),
     closeSeriesModal: document.getElementById('close-series-modal'),
+    importSeriesBtn: document.getElementById('import-series-btn'),
+    importSeriesInput: document.getElementById('import-series-input'),
     // Edit Current
     editCurrentBtn: document.getElementById('edit-current-btn'),
+
+    // Import Review
+    importReviewModal: document.getElementById('import-review-modal'),
+    importReviewList: document.getElementById('import-review-list'),
+    confirmImportBtn: document.getElementById('confirm-import-btn'),
+    cancelImportBtn: document.getElementById('cancel-import-btn'),
 };
 
 const App = {
@@ -604,6 +612,8 @@ const App = {
                 els.seriesModal.classList.add('hidden');
             }
         };
+        els.importSeriesBtn.onclick = () => els.importSeriesInput.click();
+        els.importSeriesInput.onchange = (e) => this.importSeries(e);
 
         // Chars
         els.addBtn.onclick = () => this.openEditor(null);
@@ -678,7 +688,7 @@ const App = {
         els.importInput.onchange = (e) => this.importData(e);
 
         // Outside Click Handlers (Strict: Start and End on backdrop to close)
-        [els.settingsModal, els.seriesModal, els.dataModal].forEach(modal => {
+        [els.settingsModal, els.seriesModal, els.dataModal, els.importReviewModal].forEach(modal => {
             let startedOnBackdrop = false;
 
             modal.onmousedown = (e) => {
@@ -703,7 +713,7 @@ const App = {
         window.addEventListener('keydown', (e) => {
             // Global Escape to close active modals
             if (e.key === 'Escape') {
-                const activeModals = [els.settingsModal, els.seriesModal, els.dataModal];
+                const activeModals = [els.settingsModal, els.seriesModal, els.dataModal, els.importReviewModal];
                 activeModals.forEach(modal => {
                     if (!modal.classList.contains('hidden')) {
                         if (modal === els.settingsModal) {
@@ -900,15 +910,14 @@ const App = {
                 }
             };
 
-            // 2. Export (Placeholder)
+            // 2. Export
             const exportBtn = document.createElement('button');
             exportBtn.className = 'icon-btn xs-btn';
             exportBtn.innerHTML = '📤';
-            exportBtn.title = "Export Series (Coming Soon)";
+            exportBtn.title = "Export Series";
             exportBtn.onclick = (e) => {
                 e.stopPropagation();
-                // To be implemented
-                console.log("Export series placeholder for", s.id);
+                this.exportSeries(s.id);
             };
 
             // 3. Delete
@@ -1150,6 +1159,85 @@ const App = {
         linkElement.click();
     },
 
+    exportSeries(id) {
+        const series = this.state.data.series[id];
+        if (!series) return;
+
+        // Create a single series export object
+        const exportObj = {
+            version: "v2_single_series",
+            name: series.name,
+            settings: series.settings,
+            characters: series.characters
+        };
+
+        const dataStr = JSON.stringify(exportObj, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const filename = `csg_series_${series.name.replace(/\s+/g, '_').toLowerCase()}.json`;
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', filename);
+        linkElement.click();
+    },
+
+    importSeries(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const imported = JSON.parse(event.target.result);
+
+                // Validate if it's a single series or part of a full backup
+                let seriesData = null;
+                let originalName = "";
+
+                if (imported.settings && imported.characters) {
+                    // Single series format
+                    seriesData = imported;
+                    originalName = imported.name || "Imported Series";
+                } else if (imported.series && Object.keys(imported.series).length > 0) {
+                    // It's a full backup, pick the first series or active one
+                    const firstId = imported.activeSeriesId || Object.keys(imported.series)[0];
+                    seriesData = imported.series[firstId];
+                    originalName = seriesData.name;
+                }
+
+                if (!seriesData) throw new Error("Invalid series format");
+
+                const newName = prompt("Rename series before import?", originalName);
+                if (newName === null) return; // Cancelled
+
+                const finalName = newName.trim() || originalName;
+                const newId = crypto.randomUUID();
+
+                this.state.data.series[newId] = {
+                    name: finalName,
+                    settings: JSON.parse(JSON.stringify(seriesData.settings)),
+                    characters: seriesData.characters.map(c => ({
+                        ...c,
+                        id: crypto.randomUUID()
+                    }))
+                };
+
+                this.state.save();
+                this.refreshSeriesUI(); // Update UI to switch to new series (optional: we usually switch to the new one)
+                this.state.switchSeries(newId);
+                this.refreshSeriesUI();
+
+                els.seriesModal.classList.add('hidden');
+                alert(`Series "${finalName}" imported successfully!`);
+
+            } catch (err) {
+                alert("Invalid Series JSON: " + err.message);
+            }
+            e.target.value = ''; // Reset
+        };
+        reader.readAsText(file);
+    },
+
     importData(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -1158,16 +1246,136 @@ const App = {
         reader.onload = (event) => {
             try {
                 const importedData = JSON.parse(event.target.result);
-                if (confirm("This will overwrite all current characters and series. Are you sure?")) {
-                    this.state.data = importedData;
-                    this.state.save();
-                    location.reload(); // Refresh to apply everything cleanly
-                }
+                if (!importedData.series) throw new Error("Missing series data");
+                this.showImportReview(importedData);
             } catch (err) {
-                alert("Invalid JSON file.");
+                alert("Invalid JSON file: " + err.message);
             }
+            e.target.value = ''; // Reset
         };
         reader.readAsText(file);
+    },
+
+    showImportReview(importedData) {
+        els.importReviewList.innerHTML = '';
+        this.importStrategies = {};
+
+        Object.keys(importedData.series).forEach(importUuid => {
+            const impSeries = importedData.series[importUuid];
+            const localSeriesId = Object.keys(this.state.data.series).find(id =>
+                this.state.data.series[id].name.toLowerCase() === impSeries.name.toLowerCase()
+            );
+
+            const group = document.createElement('div');
+            group.className = 'import-series-group';
+
+            const isConflict = !!localSeriesId;
+            group.innerHTML = `
+                <div class="import-series-header">
+                    <div class="import-series-title">📁 ${impSeries.name}</div>
+                    <div class="import-series-status ${isConflict ? 'conflict' : ''}">
+                        ${isConflict ? 'Merging into existing' : 'New Series'}
+                    </div>
+                </div>
+                <div class="import-char-list"></div>
+            `;
+
+            const charListEl = group.querySelector('.import-char-list');
+            impSeries.characters.forEach(impChar => {
+                const charItem = document.createElement('div');
+                charItem.className = 'import-char-item';
+
+                let hasCharConflict = false;
+                if (localSeriesId) {
+                    hasCharConflict = this.state.data.series[localSeriesId].characters.some(c =>
+                        c.name.toLowerCase() === impChar.name.toLowerCase()
+                    );
+                }
+
+                const portraitUrl = this.getOptimizedUrl(impChar.image, { w: 100, h: 100, fit: 'cover' }) || this.getPlaceholder(impChar.name);
+
+                charItem.innerHTML = `
+                    <div class="import-char-info">
+                        <img src="${portraitUrl}" onerror="this.src='${this.getPlaceholder(impChar.name)}'">
+                        <span>${impChar.name}</span>
+                    </div>
+                    <div class="import-char-conflict-actions">
+                        ${hasCharConflict ? `
+                            <button class="strategy-btn active" data-strategy="keep" data-id="${importUuid}_${impChar.name}">Keep Local</button>
+                            <button class="strategy-btn" data-strategy="overwrite" data-id="${importUuid}_${impChar.name}">Overwrite</button>
+                            <button class="strategy-btn" data-strategy="dual" data-id="${importUuid}_${impChar.name}">Dual Copy</button>
+                        ` : '<span class="import-char-status">New</span>'}
+                    </div>
+                `;
+
+                if (hasCharConflict) {
+                    this.importStrategies[`${importUuid}_${impChar.name}`] = 'keep';
+                    charItem.querySelectorAll('.strategy-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            charItem.querySelectorAll('.strategy-btn').forEach(b => b.classList.remove('active'));
+                            btn.classList.add('active');
+                            this.importStrategies[`${importUuid}_${impChar.name}`] = btn.dataset.strategy;
+                        };
+                    });
+                } else {
+                    this.importStrategies[`${importUuid}_${impChar.name}`] = 'new';
+                }
+
+                charListEl.appendChild(charItem);
+            });
+
+            els.importReviewList.appendChild(group);
+        });
+
+        els.dataModal.classList.add('hidden');
+        els.importReviewModal.classList.remove('hidden');
+
+        els.cancelImportBtn.onclick = () => els.importReviewModal.classList.add('hidden');
+        els.confirmImportBtn.onclick = () => this.executeImport(importedData);
+    },
+
+    executeImport(importedData) {
+        const localData = this.state.data;
+
+        Object.keys(importedData.series).forEach(importUuid => {
+            const impSeries = importedData.series[importUuid];
+            const localSeriesId = Object.keys(localData.series).find(id =>
+                localData.series[id].name.toLowerCase() === impSeries.name.toLowerCase()
+            );
+
+            if (localSeriesId) {
+                // Merge characters into existing series
+                const targetSeries = localData.series[localSeriesId];
+                impSeries.characters.forEach(impChar => {
+                    const strategy = this.importStrategies[`${importUuid}_${impChar.name}`];
+
+                    if (strategy === 'overwrite') {
+                        const idx = targetSeries.characters.findIndex(c => c.name.toLowerCase() === impChar.name.toLowerCase());
+                        if (idx !== -1) {
+                            const oldId = targetSeries.characters[idx].id;
+                            targetSeries.characters[idx] = { ...impChar, id: oldId };
+                        }
+                    } else if (strategy === 'dual') {
+                        targetSeries.characters.push({ ...impChar, id: crypto.randomUUID(), name: `${impChar.name} (2)` });
+                    } else if (strategy === 'new') {
+                        targetSeries.characters.push({ ...impChar, id: crypto.randomUUID() });
+                    }
+                });
+            } else {
+                // Create new series
+                const newId = crypto.randomUUID();
+                localData.series[newId] = {
+                    name: impSeries.name,
+                    settings: JSON.parse(JSON.stringify(impSeries.settings)),
+                    characters: impSeries.characters.map(c => ({ ...c, id: crypto.randomUUID() }))
+                };
+            }
+        });
+
+        this.state.save();
+        els.importReviewModal.classList.add('hidden');
+        this.refreshSeriesUI();
+        alert("Import complete!");
     }
 };
 
