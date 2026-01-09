@@ -449,12 +449,28 @@ class GoogleDriveSync {
             client_id: CLIENT_ID,
             scope: SCOPES,
             callback: (tokenResponse) => {
-                if (tokenResponse.error !== undefined) throw tokenResponse;
+                if (tokenResponse.error !== undefined) {
+                    if (tokenResponse.error === 'interaction_required') {
+                        // Silent re-auth failed, user needs to click button manually
+                        console.log('Silent re-auth failed, interaction required.');
+                        localStorage.removeItem('csg_drive_connected');
+                        if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
+                        return;
+                    }
+                    throw tokenResponse;
+                }
                 this.accessToken = tokenResponse.access_token;
+                localStorage.setItem('csg_drive_connected', 'true');
                 if (this.callbacks.onSignIn) this.callbacks.onSignIn();
             },
         });
         this.isInitialized = true;
+
+        // Try silent re-auth if previously connected
+        if (localStorage.getItem('csg_drive_connected') === 'true') {
+            console.log('Attempting silent re-auth...');
+            this.tokenClient.requestAccessToken({ prompt: 'none' });
+        }
     }
 
     handleAuthClick() {
@@ -583,6 +599,9 @@ const App = {
                 if (this.isDataDirty()) {
                     this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
                 }
+            },
+            onSignedOut: () => {
+                this.updateSyncUI();
             }
         });
         this.drive.init();
