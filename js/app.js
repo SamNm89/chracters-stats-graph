@@ -123,20 +123,16 @@ class State {
     get settings() { return this.activeSeries.settings; }
 
     updateSettings(dimensions, tiers, statNames) {
-        // If dimensions changed, we need to migrate all characters in this series
         const oldDim = this.activeSeries.settings.dimensions;
 
+        // Migration logic if dimensions changed arbitrarily (e.g. from a bulk update)
         if (dimensions !== oldDim) {
             this.activeSeries.characters.forEach(char => {
-                // Ensure array exists
                 if (!char.stats) char.stats = [];
-
                 if (dimensions > oldDim) {
-                    // Grow: Add 0s (lowest tier)
                     const diff = dimensions - oldDim;
                     for (let i = 0; i < diff; i++) char.stats.push(0);
                 } else {
-                    // Shrink: Slice array
                     char.stats = char.stats.slice(0, dimensions);
                 }
             });
@@ -145,6 +141,36 @@ class State {
         this.activeSeries.settings.dimensions = dimensions;
         this.activeSeries.settings.tiers = tiers;
         if (statNames) this.activeSeries.settings.statNames = statNames;
+        this.save();
+    }
+
+    insertStat(index, name = "New Stat") {
+        const s = this.activeSeries;
+        s.settings.dimensions++;
+        if (!s.settings.statNames) {
+            s.settings.statNames = new Array(s.settings.dimensions - 1).fill("").map((_, i) => `Stat ${i + 1}`);
+        }
+        s.settings.statNames.splice(index, 0, name);
+
+        s.characters.forEach(char => {
+            if (!char.stats) char.stats = [];
+            char.stats.splice(index, 0, 0);
+        });
+        this.save();
+    }
+
+    removeStat(index) {
+        const s = this.activeSeries;
+        if (s.settings.dimensions <= 3) return;
+
+        s.settings.dimensions--;
+        if (s.settings.statNames) {
+            s.settings.statNames.splice(index, 1);
+        }
+
+        s.characters.forEach(char => {
+            if (char.stats) char.stats.splice(index, 1);
+        });
         this.save();
     }
 
@@ -571,89 +597,149 @@ const App = {
 
         // Settings
         els.settingsBtn.onclick = () => {
-            // Load ACTIVE series settings
-            const s = this.state.settings;
-            els.settingVertices.value = s.dimensions;
-            els.settingTiers.value = s.tiers.join(',');
-            this.renderSettingsPreview(s.dimensions);
-            els.settingsModal.classList.remove('hidden');
+            this.settingsEditMode = 'add'; // Default mode
+            this.openSettingsModal();
         };
 
-        els.settingVertices.oninput = (e) => {
-            const val = parseInt(e.target.value);
-            if (val >= 3 && val <= 10) this.renderSettingsPreview(val);
-        };
+        // Mode Toggles
+        const modeAddBtn = document.getElementById('mode-add-btn');
+        const modeRemoveBtn = document.getElementById('mode-remove-btn');
+        const previewContainer = document.getElementById('settings-preview-container');
+
+        if (modeAddBtn && modeRemoveBtn) {
+            modeAddBtn.onclick = () => {
+                this.settingsEditMode = 'add';
+                modeAddBtn.classList.add('active');
+                modeRemoveBtn.classList.remove('active');
+                previewContainer.className = 'mode-add';
+            };
+            modeRemoveBtn.onclick = () => {
+                this.settingsEditMode = 'remove';
+                modeRemoveBtn.classList.add('active');
+                modeAddBtn.classList.remove('active');
+                previewContainer.className = 'mode-remove';
+            };
+        }
 
         els.cancelSettingsBtn.onclick = () => els.settingsModal.classList.add('hidden');
         els.saveSettingsBtn.onclick = () => {
-            const dim = parseInt(els.settingVertices.value);
             const tiers = els.settingTiers.value.split(',').map(s => s.trim()).filter(Boolean);
-
-            // Collect Stat Names from the absolutely positioned inputs
             const names = [];
             document.querySelectorAll('#settings-preview-container .stat-name-input-wrapper input').forEach(inp => {
                 names.push(inp.value.trim() || inp.placeholder);
             });
 
-            this.state.updateSettings(dim, tiers, names);
-            this.refreshGraph(); // Re-init graph for new settings
+            this.state.activeSeries.settings.tiers = tiers;
+            this.state.activeSeries.settings.statNames = names;
+            this.state.save();
+
+            this.refreshGraph();
             els.settingsModal.classList.add('hidden');
         };
 
         els.syncBtn.onclick = () => this.drive.handleAuthClick();
+
+        // Keyboard Navigation
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
+                // Don't navigate if user is typing in an input
+                if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+                e.preventDefault();
+                const chars = this.state.getCharacters();
+                if (chars.length === 0) return;
+
+                let idx = chars.findIndex(c => c.id === this.state.activeCharId);
+
+                if (e.key === 'ArrowUp') {
+                    idx = (idx <= 0) ? chars.length - 1 : idx - 1;
+                } else if (e.key === 'ArrowDown') {
+                    idx = (idx === -1 || idx >= chars.length - 1) ? 0 : idx + 1;
+                }
+
+                this.selectCharacter(chars[idx].id);
+            }
+        });
     },
 
-    renderSettingsPreview(dim) {
-        // Draw Mini Graph - Larger Scale
+    openSettingsModal() {
+        const s = this.state.settings;
+        els.settingTiers.value = s.tiers.join(',');
+        document.getElementById('settings-preview-container').className = 'mode-add';
+        document.getElementById('mode-add-btn').classList.add('active');
+        document.getElementById('mode-remove-btn').classList.remove('active');
+
+        this.renderSettingsPreview();
+        els.settingsModal.classList.remove('hidden');
+    },
+
+    renderSettingsPreview() {
+        const dim = this.state.settings.dimensions;
+        const existingNames = this.state.settings.statNames || [];
+        const container = document.getElementById('settings-preview-container');
+
+        // Draw Mini Graph
         this.miniGraph.width = 200;
         this.miniGraph.height = 200;
         this.miniGraph.center = { x: 100, y: 100 };
         this.miniGraph.radius = 80;
         this.miniGraph.svg.setAttribute('viewBox', '0 0 200 200');
-
-        this.miniGraph.init({ dimensions: dim, tiers: [''] }); // No inner rings needed really, just shape
+        this.miniGraph.init({ dimensions: dim, tiers: [''] });
         this.miniGraph.drawGrid();
 
-        // Render Inputs Positioned Around Graph
-        const container = document.getElementById('settings-preview-container');
-        // Clear old inputs (keep svg)
-        container.querySelectorAll('.stat-name-input-wrapper').forEach(el => el.remove());
-
-        // Use a hidden container reference or just re-select later for saving
-        // For logic simplicity, we'll store refs in a temporary way or query DOM on save.
-
-        const existingNames = this.state.settings.statNames || [];
-        const radius = 130; // Distance from center for inputs (Graph radius is 80)
-        const center = { x: 300, y: 200 }; // Center of the 600px/400px container? 
-        // Wait, container is flex center. The SVG is 200x200.
-        // Let's position relative to the container center.
-        // Container width is ~540px (padding 30x2). Height 400px.
-        // We'll calculate offsets from 50% 50%.
+        // Clear UI overlays
+        container.querySelectorAll('.stat-name-input-wrapper, .add-hitbox').forEach(el => el.remove());
 
         const angleStep = (Math.PI * 2) / dim;
         const startAngle = -Math.PI / 2;
+        const inputRadius = 130;
 
         for (let i = 0; i < dim; i++) {
             const angle = startAngle + (i * angleStep);
 
-            // Calculate Position (Relative to center of container)
-            // x = cos(angle) * r, y = sin(angle) * r
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
+            // 1. Stat Name Input
+            const x = Math.cos(angle) * inputRadius;
+            const y = Math.sin(angle) * inputRadius;
 
             const wrapper = document.createElement('div');
             wrapper.className = 'stat-name-input-wrapper';
-            // CSS Translate handles centering (-50%), so we just set left/top to center + offset
             wrapper.style.left = `calc(50% + ${x}px)`;
             wrapper.style.top = `calc(50% + ${y}px)`;
 
             const inp = document.createElement('input');
             inp.type = "text";
             inp.placeholder = `Stat ${i + 1}`;
-            if (i < existingNames.length) inp.value = existingNames[i];
+            inp.value = existingNames[i] || "";
+            inp.onclick = (e) => {
+                if (this.settingsEditMode === 'remove') {
+                    e.stopPropagation();
+                    this.state.removeStat(i);
+                    this.renderSettingsPreview();
+                }
+            };
 
             wrapper.appendChild(inp);
             container.appendChild(wrapper);
+
+            // 2. Add Hitbox (Between this stat and the next)
+            const midAngle = angle + (angleStep / 2);
+            const hx = Math.cos(midAngle) * 80; // on the spider axis radius
+            const hy = Math.sin(midAngle) * 80;
+
+            const hitbox = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            hitbox.setAttribute('class', 'add-hitbox');
+            hitbox.innerHTML = `
+                <circle cx="${100 + hx}" cy="${100 + hy}" r="15" fill="transparent" />
+                <circle class="add-hitbox-marker" cx="${100 + hx}" cy="${100 + hy}" r="6" />
+                <text x="${100 + hx}" y="${100 + hy + 4}" font-size="10" text-anchor="middle" fill="white" font-weight="bold">+</text>
+            `;
+            hitbox.onclick = () => {
+                if (this.settingsEditMode === 'add') {
+                    this.state.insertStat(i + 1);
+                    this.renderSettingsPreview();
+                }
+            };
+            this.miniGraph.svg.appendChild(hitbox);
         }
     },
 
