@@ -1,5 +1,3 @@
-/* Existing Styles... (Keep all) plus: */
-
 /* Series Switcher */
 .series-select-container {
     flex: 1;
@@ -70,7 +68,6 @@
     gap: 10px;
 }
 
-/* --- Rest of original CSS --- */
 :root {
     --bg-dark: #0f0f13;
     --bg-panel: rgba(30, 30, 40, 0.7);

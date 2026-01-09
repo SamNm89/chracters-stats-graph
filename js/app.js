@@ -375,17 +375,102 @@ function mapPoints(arr) { return arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1
    ========================================= */
 const CLIENT_ID = 'YOUR_CLIENT_ID_HERE';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const API_KEY = ''; // Optional
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
 class GoogleDriveSync {
     constructor(callbacks) {
         this.tokenClient = null;
         this.accessToken = null;
         this.callbacks = callbacks || {};
+        this.isInitialized = false;
     }
-    // ... (Same sync logic, just handles the new data blob automatically)
-    // omitting verbose boilerplate for brevity, assuming standard gapi loaded
-    init() { } // Placeholder for brevity, real implementation logic same as before but respecting App structure
-    async saveToCloud(data) { console.log('Saving...', data); }
+
+    loadScripts() {
+        return new Promise((resolve) => {
+            if (window.gapi && window.google) return resolve();
+            const script1 = document.createElement('script');
+            script1.src = "https://accounts.google.com/gsi/client";
+            script1.onload = () => {
+                const script2 = document.createElement('script');
+                script2.src = "https://apis.google.com/js/api.js";
+                script2.onload = () => resolve();
+                document.body.appendChild(script2);
+            };
+            document.body.appendChild(script1);
+        });
+    }
+
+    async init() {
+        if (!CLIENT_ID || CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+            console.warn('Google Sync: No Client ID provided.');
+            return;
+        }
+
+        await this.loadScripts();
+        await new Promise((resolve) => gapi.load('client', resolve));
+        await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] });
+
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: (tokenResponse) => {
+                if (tokenResponse.error !== undefined) throw tokenResponse;
+                this.accessToken = tokenResponse.access_token;
+                if (this.callbacks.onSignIn) this.callbacks.onSignIn();
+            },
+        });
+        this.isInitialized = true;
+    }
+
+    handleAuthClick() {
+        if (!this.isInitialized) {
+            alert("Google Sync is not configured. Please add a valid Client ID in the script.");
+            return;
+        }
+        if (gapi.client.getToken() === null) {
+            this.tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            this.tokenClient.requestAccessToken({ prompt: '' });
+        }
+    }
+
+    async findBackupFile() {
+        try {
+            const response = await gapi.client.drive.files.list({
+                q: "name = 'csg_backup.json' and trashed = false",
+                fields: 'files(id, name)',
+                spaces: 'drive'
+            });
+            const files = response.result.files;
+            return (files && files.length > 0) ? files[0].id : null;
+        } catch (err) {
+            console.error('Error finding file', err);
+            return null;
+        }
+    }
+
+    async saveToCloud(data) {
+        const fileId = await this.findBackupFile();
+        const fileContent = JSON.stringify(data);
+        const file = new Blob([fileContent], { type: 'application/json' });
+        const metadata = { 'name': 'csg_backup.json', 'mimeType': 'application/json' };
+        const accessToken = gapi.client.getToken().access_token;
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        const url = fileId
+            ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+        await fetch(url, {
+            method: fileId ? 'PATCH' : 'POST',
+            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            body: form
+        });
+        console.log('Saved to Drive');
+    }
 }
 
 // Global UI Elements map
@@ -431,6 +516,16 @@ const App = {
         this.state = new State();
         this.graph = new Graph(els.svg);
         this.miniGraph = new Graph(els.settingMiniGraph);
+
+        // Initialize Drive Sync
+        this.drive = new GoogleDriveSync({
+            onSignIn: () => {
+                alert('Synced with Google Drive!');
+                // Auto-upload current state on connect
+                this.drive.saveToCloud(this.state.data);
+            }
+        });
+        this.drive.init();
         // Mini graph needs smaller scale
         this.miniGraph.width = 150;
         this.miniGraph.height = 150;
