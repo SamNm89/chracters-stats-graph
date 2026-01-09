@@ -263,8 +263,12 @@ class Graph {
         const startAngle = -Math.PI / 2;
 
         return stats.map((val, i) => {
-            const fraction = (val + 1) / tiers.length;
-            const r = this.radius * Math.max(0.1, fraction);
+            // Map 0 -> 0 (center), Max -> 1 (edge)
+            // tiers.length - 1 is the max index
+            const maxIndex = Math.max(1, tiers.length - 1);
+            const fraction = val / maxIndex;
+
+            const r = this.radius * fraction;
             const angle = startAngle + (i * angleStep);
             return {
                 x: this.center.x + r * Math.cos(angle),
