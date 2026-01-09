@@ -187,7 +187,13 @@ class Graph {
 
     init(settings) {
         this.settings = settings;
-        // Reset current stats to safe defaults (0s) matching dims
+        this.dimensions = settings.dimensions;
+
+        // Adjust radius to fit labels if this is the main graph
+        if (this.width > 300) {
+            this.radius = 160;
+        }
+
         this.currentStats = new Array(settings.dimensions).fill(0);
         this.drawGrid();
         this.drawShape(this.currentStats);
@@ -195,6 +201,17 @@ class Graph {
 
     drawGrid() {
         this.svg.innerHTML = '';
+
+        // Create Layer Groups
+        this.gridGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.polyGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.labelsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.labelsGroup.setAttribute('class', 'chart-labels');
+
+        this.svg.appendChild(this.gridGroup);
+        this.svg.appendChild(this.polyGroup);
+        this.svg.appendChild(this.labelsGroup);
+
         const N = this.settings.dimensions;
         const tiers = this.settings.tiers;
         const tierCount = tiers.length - 1;
@@ -205,7 +222,7 @@ class Graph {
             const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
             poly.setAttribute('points', mapPoints(points));
             poly.setAttribute('class', i === tierCount ? 'graph-web outer' : 'graph-web inner');
-            this.svg.appendChild(poly);
+            this.gridGroup.appendChild(poly);
         }
 
         const outerPoints = this.getPolygonPoints(N, this.radius);
@@ -216,8 +233,50 @@ class Graph {
             line.setAttribute('x2', p.x);
             line.setAttribute('y2', p.y);
             line.setAttribute('class', 'graph-axis');
-            this.svg.appendChild(line);
+            this.gridGroup.appendChild(line);
         });
+    }
+
+    drawLabels(stats) {
+        if (!this.labelsGroup) return;
+        this.labelsGroup.innerHTML = '';
+
+        const statNames = this.settings.statNames || [];
+        const tiers = this.settings.tiers;
+        const radiusName = this.radius + 45; // Name further out
+        const radiusTier = this.radius + 20; // Tier closer
+
+        for (let i = 0; i < this.dimensions; i++) {
+            const angle = -Math.PI / 2 + (Math.PI * 2 * i) / this.dimensions;
+            const statVal = stats ? (stats[i] || 0) : 0;
+            const tierLabel = tiers[statVal] || '';
+            const nameLabel = statNames[i] || `Stat ${i + 1}`;
+
+            // Helper to anchor text based on angle
+            const align = (Math.abs(Math.cos(angle)) < 0.1) ? 'middle' : (Math.cos(angle) > 0 ? 'start' : 'end');
+            const baseline = (Math.abs(Math.sin(angle)) < 0.1) ? 'middle' : (Math.sin(angle) > 0 ? 'hanging' : 'baseline');
+
+            // 1. Tier Label (Inner)
+            const tx = this.center.x + radiusTier * Math.cos(angle);
+            const ty = this.center.y + radiusTier * Math.sin(angle);
+            this.drawText(tx, ty, tierLabel, this.labelsGroup, 'label-tier', align, baseline);
+
+            // 2. Name Label (Outer)
+            const nx = this.center.x + radiusName * Math.cos(angle);
+            const ny = this.center.y + radiusName * Math.sin(angle);
+            this.drawText(nx, ny, nameLabel, this.labelsGroup, 'label-name', align, baseline);
+        }
+    }
+
+    drawText(x, y, text, parent, className, align, baseline) {
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', x);
+        t.setAttribute('y', y);
+        t.setAttribute('class', className);
+        t.setAttribute('text-anchor', align);
+        t.setAttribute('dominant-baseline', baseline);
+        t.textContent = text;
+        parent.appendChild(t);
     }
 
     getPolygonPoints(sides, r) {
@@ -235,16 +294,19 @@ class Graph {
     }
 
     drawShape(stats) {
-        let shape = this.svg.querySelector('.graph-shape');
+        // Ensure groups exist if accidentally wiped (safety)
+        if (!this.polyGroup) this.drawGrid();
+
+        let shape = this.polyGroup.querySelector('.graph-shape');
         if (!shape) {
             shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
             shape.setAttribute('class', 'graph-shape');
-            this.svg.appendChild(shape);
+            this.polyGroup.appendChild(shape);
         }
         const pointsString = this.calculateShapeString(stats);
         shape.setAttribute('points', pointsString);
 
-        this.svg.querySelectorAll('.graph-dot').forEach(el => el.remove());
+        this.polyGroup.querySelectorAll('.graph-dot').forEach(el => el.remove());
         const coords = this.getStatCoords(stats);
         coords.forEach(p => {
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -252,7 +314,7 @@ class Graph {
             circle.setAttribute('cy', p.y);
             circle.setAttribute('r', 4);
             circle.setAttribute('class', 'graph-dot');
-            this.svg.appendChild(circle);
+            this.polyGroup.appendChild(circle);
         });
     }
 
@@ -283,6 +345,9 @@ class Graph {
     }
 
     animateTo(targetStats) {
+        // Update Labels immediately
+        this.drawLabels(targetStats);
+
         const startStats = [...this.currentStats];
         while (startStats.length < targetStats.length) startStats.push(0);
 
