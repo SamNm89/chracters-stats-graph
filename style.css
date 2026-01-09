@@ -135,6 +135,8 @@ body {
 
 .actions {
     display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .icon-btn {
@@ -148,6 +150,40 @@ body {
 
 .icon-btn:hover {
     color: var(--text-main);
+}
+
+#settings-btn {
+    font-size: 1.2rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+
+.add-btn-premium {
+    background: #10b981;
+    color: white;
+    border: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 0;
+    padding-top: 1px;
+    /* Precise adjustment for vertical centering */
+    transition: background 0.2s;
+}
+
+.add-btn-premium:hover {
+    background: #059669;
+}
+
+.add-btn-premium:active {
+    transform: scale(0.95);
 }
 
 .character-list {
