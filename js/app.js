@@ -910,6 +910,7 @@ const App = {
         };
         const savedId = this.state.saveCharacter(data);
         this.selectCharacter(savedId);
+        els.editorPanel.classList.add('hidden');
     },
 
     deleteCharacter() {

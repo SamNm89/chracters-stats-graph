@@ -307,12 +307,52 @@ body {
     margin: 0;
 }
 
+.close-btn {
+    font-size: 1.5rem;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: rotate(90deg);
+    color: white;
+}
+
 .editor-form {
     display: flex;
     flex-direction: column;
     gap: 15px;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 10px;
+    /* Space for the delete button */
+}
+
+/* Custom Scrollbar for a cleaner look */
+.editor-form::-webkit-scrollbar {
+    width: 6px;
+}
+
+.editor-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.editor-form::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.editor-form::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 input {
