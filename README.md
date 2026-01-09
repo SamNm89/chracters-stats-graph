@@ -22,3 +22,9 @@ A modern radar chart visualizer for character statistics. Build rosters, customi
 5. **Sync & Backup**: Click the cloud icon (**☁️**) in the top right to link Google Drive or download a JSON backup.
 
 *Note: Visual guide with photos and videos will be added here soon.*
+
+## Privacy & Data
+
+- **Local Storage**: Your character data, stats, and series are stored locally in your browser's `localStorage`. No data is sent to or stored on our servers.
+- **Privacy**: Since all processing and storage happen on your own device, your data remains private and accessible only to you.
+- **Cloud Sync**: If you choose to use the Google Drive Sync feature, your data is stored in your personal Google Drive account. We do not have access to your files.
