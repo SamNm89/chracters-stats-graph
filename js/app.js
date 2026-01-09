@@ -405,7 +405,7 @@ function mapPoints(arr) { return arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1
 /* =========================================
    3. GOOGLE SYNC & APP CONTROLLER
    ========================================= */
-const CLIENT_ID = 'YOUR_CLIENT_ID_HERE';
+const CLIENT_ID = '422487925462-sjl9obqg89942k80ntm127d0uvmh2fui.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const API_KEY = ''; // Optional
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
