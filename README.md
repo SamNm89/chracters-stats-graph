@@ -30,6 +30,16 @@ A modern radar chart visualizer for character statistics. Build rosters, customi
 - **Privacy**: Since all processing and storage happen on your own device, your data remains private and accessible only to you.
 - **Cloud Sync**: If you choose to use the Google Drive Sync feature, your data is stored in your personal Google Drive account. We do not have access to your files.
 
+## 🚀 Future Goals
+
+The project is evolving into a comprehensive character lore and world-building tool. Planned features include:
+
+- **Factions & Regions**: Assign characters to specific factions with custom logos and assign them to regional systems (planets, continents, and systems).
+- **Interactive World Map**: A dynamic map view where character portraits are positioned across regions, allowing for visual storytelling of character distribution.
+- **Weapon & Ability Database**: Dedicated zones for character inventories, including weapon catalogs with custom descriptions and detailed ability lists.
+- **Achievement & Ranking System**: Integrated tracking for character milestones and world rankings.
+- **Evolved UI Layouts**: A new "Lore View" where the radar graph takes a compact corner position to make room for detailed descriptions, while still allowing users to toggle back to the "Classic Graph View."
+
 ## License
 
 This project is licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
