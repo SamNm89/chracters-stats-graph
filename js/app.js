@@ -100,9 +100,11 @@ class State {
         }
     }
 
-    updateSeriesName(name) {
-        this.activeSeries.name = name;
-        this.save();
+    updateSeriesName(id, name) {
+        if (this.data.series[id]) {
+            this.data.series[id].name = name;
+            this.save();
+        }
     }
 
     deleteSeries(id) {
@@ -635,20 +637,33 @@ const App = {
             };
         }
 
-        els.cancelSettingsBtn.onclick = () => els.settingsModal.classList.add('hidden');
+        els.cancelSettingsBtn.onclick = () => this.closeSettingsModal();
         els.saveSettingsBtn.onclick = () => {
+            if (!this.settingsDraft) return;
+
+            // SAFETY: Ensure we are still editing the same series we started with
+            if (this.settingsDraftId !== this.state.data.activeSeriesId) {
+                console.error("Series changed while editing settings. Discarding draft.");
+                this.closeSettingsModal();
+                return;
+            }
+
             const tiers = els.settingTiers.value.split(',').map(s => s.trim()).filter(Boolean);
             const names = [];
             document.querySelectorAll('#settings-preview-container .stat-name-input-wrapper input').forEach(inp => {
                 names.push(inp.value.trim() || inp.placeholder);
             });
 
-            this.state.activeSeries.settings.tiers = tiers;
-            this.state.activeSeries.settings.statNames = names;
+            // Apply draft to permanent state
+            this.settingsDraft.settings.tiers = tiers;
+            this.settingsDraft.settings.statNames = names;
+
+            // Merge the draft back into the state
+            this.state.data.series[this.state.data.activeSeriesId] = this.settingsDraft;
             this.state.save();
 
+            this.closeSettingsModal();
             this.refreshGraph();
-            els.settingsModal.classList.add('hidden');
         };
 
         els.syncBtn.onclick = () => {
@@ -661,6 +676,21 @@ const App = {
         els.exportJsonBtn.onclick = () => this.exportData();
         els.importJsonBtn.onclick = () => els.importInput.click();
         els.importInput.onchange = (e) => this.importData(e);
+
+        // Outside Click Handlers (Clicking empty space to close)
+        [els.settingsModal, els.seriesModal, els.dataModal].forEach(modal => {
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    if (modal === els.settingsModal) {
+                        this.closeSettingsModal();
+                    } else {
+                        modal.classList.add('hidden');
+                    }
+                }
+            };
+        });
+        this.settingsDraft = null;
+        this.settingsDraftId = null;
 
         // Keyboard Navigation
         window.addEventListener('keydown', (e) => {
@@ -686,7 +716,11 @@ const App = {
     },
 
     openSettingsModal() {
-        const s = this.state.settings;
+        // Track which series this draft belongs to
+        this.settingsDraftId = this.state.data.activeSeriesId;
+        this.settingsDraft = JSON.parse(JSON.stringify(this.state.activeSeries));
+
+        const s = this.settingsDraft.settings;
         els.settingTiers.value = s.tiers.join(',');
         document.getElementById('settings-preview-container').className = 'mode-add';
         document.getElementById('mode-add-btn').classList.add('active');
@@ -696,9 +730,40 @@ const App = {
         els.settingsModal.classList.remove('hidden');
     },
 
+    closeSettingsModal() {
+        this.settingsDraft = null;
+        this.settingsDraftId = null;
+        els.settingsModal.classList.add('hidden');
+    },
+
+    // Helper functions for the draft mode (No saving!)
+    _insertStatInDraft(index, name = "New Stat") {
+        const s = this.settingsDraft;
+        s.settings.dimensions++;
+        if (!s.settings.statNames) {
+            s.settings.statNames = new Array(s.settings.dimensions - 1).fill("").map((_, i) => `Stat ${i + 1}`);
+        }
+        s.settings.statNames.splice(index, 0, name);
+        s.characters.forEach(char => {
+            if (!char.stats) char.stats = [];
+            char.stats.splice(index, 0, 0);
+        });
+    },
+
+    _removeStatFromDraft(index) {
+        const s = this.settingsDraft;
+        if (s.settings.dimensions <= 3) return;
+        s.settings.dimensions--;
+        if (s.settings.statNames) s.settings.statNames.splice(index, 1);
+        s.characters.forEach(char => {
+            if (char.stats) char.stats.splice(index, 1);
+        });
+    },
+
     renderSettingsPreview() {
-        const dim = this.state.settings.dimensions;
-        const existingNames = this.state.settings.statNames || [];
+        if (!this.settingsDraft) return;
+        const dim = this.settingsDraft.settings.dimensions;
+        const existingNames = this.settingsDraft.settings.statNames || [];
         const container = document.getElementById('settings-preview-container');
 
         // Draw Mini Graph
@@ -736,7 +801,7 @@ const App = {
             inp.onclick = (e) => {
                 if (this.settingsEditMode === 'remove') {
                     e.stopPropagation();
-                    this.state.removeStat(i);
+                    this._removeStatFromDraft(i);
                     this.renderSettingsPreview();
                 }
             };
@@ -758,7 +823,7 @@ const App = {
             `;
             hitbox.onclick = () => {
                 if (this.settingsEditMode === 'add') {
-                    this.state.insertStat(i + 1);
+                    this._insertStatInDraft(i + 1);
                     this.renderSettingsPreview();
                 }
             };
@@ -782,15 +847,76 @@ const App = {
         els.seriesList.innerHTML = '';
         const list = this.state.getSeriesList();
         list.forEach(s => {
-            const btn = document.createElement('button');
-            btn.className = `series-option ${s.id === this.state.data.activeSeriesId ? 'active' : ''}`;
-            btn.innerText = s.name;
-            btn.onclick = () => {
+            const item = document.createElement('div');
+            item.className = `series-item ${s.id === this.state.data.activeSeriesId ? 'active' : ''}`;
+
+            const titleBtn = document.createElement('button');
+            titleBtn.className = 'series-item-name';
+            titleBtn.innerText = s.name;
+            titleBtn.onclick = () => {
                 this.state.switchSeries(s.id);
                 this.refreshSeriesUI();
                 els.seriesModal.classList.add('hidden');
             };
-            els.seriesList.appendChild(btn);
+
+            const actions = document.createElement('div');
+            actions.className = 'series-item-actions';
+
+            // 1. Rename
+            const editBtn = document.createElement('button');
+            editBtn.className = 'icon-btn xs-btn';
+            editBtn.innerHTML = '✎';
+            editBtn.title = "Rename Series";
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                const newName = prompt("Enter new name for the series:", s.name);
+                if (newName && newName.trim() !== "") {
+                    this.state.updateSeriesName(s.id, newName.trim());
+                    this.renderSeriesList();
+                    if (s.id === this.state.data.activeSeriesId) {
+                        els.seriesNameLabel.innerText = newName.trim();
+                    }
+                }
+            };
+
+            // 2. Export (Placeholder)
+            const exportBtn = document.createElement('button');
+            exportBtn.className = 'icon-btn xs-btn';
+            exportBtn.innerHTML = '📤';
+            exportBtn.title = "Export Series (Coming Soon)";
+            exportBtn.onclick = (e) => {
+                e.stopPropagation();
+                // To be implemented
+                console.log("Export series placeholder for", s.id);
+            };
+
+            // 3. Delete
+            const delBtn = document.createElement('button');
+            delBtn.className = 'icon-btn xs-btn del-btn';
+            delBtn.innerHTML = '🗑️';
+            delBtn.title = "Delete Series";
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                const confirmName = prompt(`To delete series "${s.name}", please type its name exactly:`);
+                if (confirmName === s.name) {
+                    if (this.state.deleteSeries(s.id)) {
+                        this.renderSeriesList();
+                        this.refreshSeriesUI();
+                    } else {
+                        alert("Cannot delete the last series!");
+                    }
+                } else if (confirmName !== null) {
+                    alert("Name didn't match. Deletion cancelled.");
+                }
+            };
+
+            actions.appendChild(editBtn);
+            actions.appendChild(exportBtn);
+            actions.appendChild(delBtn);
+
+            item.appendChild(titleBtn);
+            item.appendChild(actions);
+            els.seriesList.appendChild(item);
         });
     },
 
