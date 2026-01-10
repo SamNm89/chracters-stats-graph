@@ -204,6 +204,31 @@
         </div>
     </div>
 
+    <div id="sync-conflict-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h2>Sync Conflict</h2>
+            <p class="modal-subtitle">Remote data is different from local data. Please choose which version to keep.</p>
+
+            <div class="conflict-comparison" style="display: flex; gap: 20px; justify-content: space-around; margin-top: 20px;">
+                <div class="conflict-option" style="text-align: center;">
+                    <h4>☁️ Cloud Data</h4>
+                    <p id="conflict-cloud-time" style="margin-bottom: 10px; opacity: 0.8; font-size: 0.9em;">Checking...</p>
+                    <button id="use-cloud-btn" class="primary-btn">Use Cloud Data</button>
+                </div>
+                <div class="conflict-option" style="text-align: center;">
+                    <h4>💻 Local Data</h4>
+                    <p id="conflict-local-time" style="margin-bottom: 10px; opacity: 0.8; font-size: 0.9em;">Checking...</p>
+                    <button id="use-local-btn" class="secondary-btn">Keep Local Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js"></script>
+
     <!-- Google API Scripts -->
     <script src="js/app.js"></script>
 </body>
