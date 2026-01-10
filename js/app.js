@@ -470,11 +470,14 @@ class GoogleDriveSync {
         await this.loadScripts();
         await new Promise((resolve) => gapi.load('client', resolve));
 
-        // Init GAPI Client with API Key and Discovery Docs
-        await gapi.client.init({
-            apiKey: API_KEY, // Note: Ideally should be populated
+        // Init GAPI Client with Discovery Docs (API Key optional)
+        const gapiConfig = {
             discoveryDocs: [DISCOVERY_DOC],
-        });
+        };
+        if (API_KEY) {
+            gapiConfig.apiKey = API_KEY;
+        }
+        await gapi.client.init(gapiConfig);
 
         // Init Token Client (Identity Services)
         this.tokenClient = google.accounts.oauth2.initTokenClient({
@@ -485,6 +488,9 @@ class GoogleDriveSync {
                     console.error(tokenResponse);
                     return;
                 }
+                // CRITICAL: Set the token for GAPI client
+                gapi.client.setToken(tokenResponse);
+
                 localStorage.setItem('csg_drive_connected', 'true');
                 if (this.callbacks.onSignIn) this.callbacks.onSignIn();
             },
@@ -717,10 +723,10 @@ const App = {
             els.seriesModal.classList.remove('hidden');
         };
         els.closeSeriesModal.onclick = () => els.seriesModal.classList.add('hidden');
-        els.createSeriesBtn.onclick = () => {
+        els.createSeriesBtn.onclick = async () => {
             const name = els.newSeriesInput.value.trim();
             if (name) {
-                this.state.createSeries(name);
+                await this.state.createSeries(name);
                 els.newSeriesInput.value = '';
                 this.refreshSeriesUI();
                 els.seriesModal.classList.add('hidden');
@@ -762,7 +768,7 @@ const App = {
         }
 
         els.cancelSettingsBtn.onclick = () => this.closeSettingsModal();
-        els.saveSettingsBtn.onclick = () => {
+        els.saveSettingsBtn.onclick = async () => {
             if (!this.settingsDraft) return;
 
             // SAFETY: Ensure we are still editing the same series we started with
@@ -784,7 +790,7 @@ const App = {
 
             // Merge the draft back into the state
             this.state.data.series[this.state.data.activeSeriesId] = this.settingsDraft;
-            this.state.save();
+            await this.state.save();
 
             this.closeSettingsModal();
             this.refreshGraph();
@@ -1011,8 +1017,8 @@ const App = {
             const titleBtn = document.createElement('button');
             titleBtn.className = 'series-item-name';
             titleBtn.innerText = s.name;
-            titleBtn.onclick = () => {
-                this.state.switchSeries(s.id);
+            titleBtn.onclick = async () => {
+                await this.state.switchSeries(s.id);
                 this.refreshSeriesUI();
                 els.seriesModal.classList.add('hidden');
             };
@@ -1025,11 +1031,11 @@ const App = {
             editBtn.className = 'icon-btn xs-btn';
             editBtn.innerHTML = '✎';
             editBtn.title = "Rename Series";
-            editBtn.onclick = (e) => {
+            editBtn.onclick = async (e) => {
                 e.stopPropagation();
                 const newName = prompt("Enter new name for the series:", s.name);
                 if (newName && newName.trim() !== "") {
-                    this.state.updateSeriesName(s.id, newName.trim());
+                    await this.state.updateSeriesName(s.id, newName.trim());
                     this.renderSeriesList();
                     if (s.id === this.state.data.activeSeriesId) {
                         els.seriesNameLabel.innerText = newName.trim();
@@ -1052,11 +1058,12 @@ const App = {
             delBtn.className = 'icon-btn xs-btn del-btn';
             delBtn.innerHTML = '🗑️';
             delBtn.title = "Delete Series";
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
                 const confirmName = prompt(`To delete series "${s.name}", please type its name exactly:`);
                 if (confirmName === s.name) {
-                    if (this.state.deleteSeries(s.id)) {
+                    const success = await this.state.deleteSeries(s.id);
+                    if (success) {
                         this.renderSeriesList();
                         this.refreshSeriesUI();
                     } else {
@@ -1118,10 +1125,10 @@ const App = {
             };
 
             const delBtn = div.querySelector('.del-btn');
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
                 if (confirm(`Delete ${char.name}?`)) {
-                    this.state.deleteCharacter(char.id);
+                    await this.state.deleteCharacter(char.id);
                     if (this.state.activeCharId === char.id) this.renderEmptyState();
                     this.renderList();
                 }
@@ -1223,7 +1230,7 @@ const App = {
         this.graph.animateTo(stats);
     },
 
-    saveCharacter() {
+    async saveCharacter() {
         const stats = [];
         els.statSliders.querySelectorAll('input').forEach(i => stats.push(parseInt(i.value)));
         const data = {
@@ -1233,14 +1240,14 @@ const App = {
             bgImage: els.editBg.value,
             stats: stats
         };
-        const savedId = this.state.saveCharacter(data);
+        const savedId = await this.state.saveCharacter(data);
         this.selectCharacter(savedId);
         els.editorPanel.classList.add('hidden');
     },
 
-    deleteCharacter() {
+    async deleteCharacter() {
         if (this.editingId && confirm("Delete?")) {
-            this.state.deleteCharacter(this.editingId);
+            await this.state.deleteCharacter(this.editingId);
             els.editorPanel.classList.add('hidden');
             this.refreshSeriesUI();
         }
@@ -1445,7 +1452,7 @@ const App = {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const imported = JSON.parse(event.target.result);
 
@@ -1481,9 +1488,9 @@ const App = {
                     }))
                 };
 
-                this.state.save();
+                await this.state.save();
                 this.refreshSeriesUI(); // Update UI to switch to new series (optional: we usually switch to the new one)
-                this.state.switchSeries(newId);
+                await this.state.switchSeries(newId);
                 this.refreshSeriesUI();
 
                 els.seriesModal.classList.add('hidden');
@@ -1593,7 +1600,7 @@ const App = {
         els.confirmImportBtn.onclick = () => this.executeImport(importedData);
     },
 
-    executeImport(importedData) {
+    async executeImport(importedData) {
         const localData = this.state.data;
 
         Object.keys(importedData.series).forEach(importUuid => {
@@ -1631,7 +1638,7 @@ const App = {
             }
         });
 
-        this.state.save();
+        await this.state.save();
         els.importReviewModal.classList.add('hidden');
         this.refreshSeriesUI();
         alert("Import complete!");
