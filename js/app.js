@@ -248,6 +248,9 @@ class Graph {
         this.radius = this.width > 300 ? 220 : 60;
 
         this.currentStats = new Array(settings.dimensions).fill(0);
+        this.displayedStats = [...this.currentStats]; // Track what is currently drawn
+        this.animationId = null; // Track active animation frame
+
         this.drawGrid();
         this.drawShape(this.currentStats);
     }
@@ -406,27 +409,52 @@ class Graph {
     }
 
     animateTo(targetStats) {
+        // Cancel any running animation to prevent fighting loops
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+
         // Update Labels immediately
         this.drawLabels(targetStats);
 
-        const startStats = [...this.currentStats];
+        // Start from what is currently ON SCREEN, not the last "settled" state
+        // This prevents the graph from jumping back if a new event fires mid-animation
+        const startStats = this.displayedStats ? [...this.displayedStats] : [...this.currentStats];
+        
+        // Ensure lengths match if dimensions changed (resizing arrays)
         while (startStats.length < targetStats.length) startStats.push(0);
 
         const startTime = performance.now();
-        const duration = 400;
+        const duration = 200; // Slightly faster for snappier feel
+        
         const loop = (t) => {
             const elapsed = t - startTime;
             const p = Math.min(elapsed / duration, 1);
+            
+            // Cubic ease-out
             const ease = 1 - Math.pow(1 - p, 3);
+            
             const interp = startStats.map((s, i) => {
                 const end = targetStats[i] !== undefined ? targetStats[i] : 0;
                 return s + (end - s) * ease;
             });
+            
+            // Update displayed stats tracking
+            this.displayedStats = interp;
             this.drawShape(interp);
-            if (p < 1) requestAnimationFrame(loop);
-            else this.currentStats = targetStats;
+
+            // Continue or Finish
+            if (p < 1) {
+                this.animationId = requestAnimationFrame(loop);
+            } else {
+                this.currentStats = targetStats;
+                this.displayedStats = [...targetStats]; // Ensure exact final value
+                this.animationId = null;
+            }
         };
-        requestAnimationFrame(loop);
+        
+        this.animationId = requestAnimationFrame(loop);
     }
 }
 function mapPoints(arr) { return arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '); }
