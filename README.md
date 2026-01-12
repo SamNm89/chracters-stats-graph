@@ -34,7 +34,9 @@ A modern radar chart visualizer for character statistics. Build rosters, customi
 
 The project is evolving into a comprehensive character lore and world-building tool. Planned features include:
 
+- **Search, Sort & Tags**: Implement a robust character discovery system where users can add custom metadata tags and quickly filter or sort their roster.
 - **Factions & Regions**: Assign characters to specific factions with custom logos and assign them to regional systems (planets, continents, and systems).
+- **Advanced Name Typography**: A fresh UI update that intelligently highlights the character's first name with bold emphasis while keeping middle/family names more subtle and sophisticated.
 - **Interactive World Map**: A dynamic map view where character portraits are positioned across regions, allowing for visual storytelling of character distribution.
 - **Weapon & Ability Database**: Dedicated zones for character inventories, including weapon catalogs with custom descriptions and detailed ability lists.
 - **Achievement & Ranking System**: Integrated tracking for character milestones and world rankings.

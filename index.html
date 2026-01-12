@@ -152,17 +152,46 @@
             <p class="modal-subtitle">Sync your data to the cloud or manage local backups.</p>
 
             <div class="data-options">
-                <div class="data-option-card">
+                <div class="data-option-card drive-card">
                     <div class="sync-card-header">
-                        <h4>☁️ Google Drive Sync</h4>
+                        <div class="title-with-icon">
+                            <h4>☁️ Google Drive Sync</h4>
+                        </div>
                         <div id="sync-status-indicator" class="sync-indicator" title="Sync Status"></div>
                     </div>
-                    <p>Backup and sync your data across devices.</p>
-                    <div id="sync-details" class="sync-details hidden">
-                        <span class="sync-label">Last Sync:</span>
-                        <span id="last-sync-time" class="sync-time">Never</span>
+
+                    <div class="drive-info">
+                        <p class="privacy-note">This app uses a private <strong>Application Data</strong> folder on your
+                            drive to save and sync rosters. It can only read/write files this site created.</p>
+
+                        <div id="sync-details" class="sync-details hidden">
+                            <div class="detail-row">
+                                <span class="sync-label">Account:</span>
+                                <span id="sync-user-email" class="user-email-reveal" title="Hover to reveal">Not
+                                    available</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="sync-label">Sync Status:</span>
+                                <span id="sync-status-text" class="status-value">Connected</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="sync-label">Last Sync:</span>
+                                <span id="last-sync-time" class="sync-time">Never</span>
+                            </div>
+                        </div>
                     </div>
-                    <button id="sync-btn" class="primary-btn">Connect & Sync</button>
+
+                    <div class="drive-actions">
+                        <button id="sync-btn" class="primary-btn">
+                            <svg viewBox="0 0 24 24" class="btn-icon">
+                                <path
+                                    d="M7.71,3.5L1.15,15L4.58,21L11.13,9.5M9.73,15L6.3,21H19.42L22.85,15M22.28,14L15.42,2H8.58L8.57,2L15.43,14H22.28Z">
+                                </path>
+                            </svg>
+                            <span>Connect & Sync</span>
+                        </button>
+                        <button id="sign-out-btn" class="secondary-btn hidden">Sign Out</button>
+                    </div>
                 </div>
 
                 <div class="data-option-card">

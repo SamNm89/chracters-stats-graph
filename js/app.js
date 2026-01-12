@@ -37,6 +37,7 @@ class State {
     createDefault() {
         return {
             activeSeriesId: 'default',
+            lastUpdated: Date.now(),
             series: {
                 'default': {
                     name: 'My First Series',
@@ -528,6 +529,18 @@ class GoogleDriveSync {
         return window.gapi && gapi.client && gapi.client.getToken() !== null;
     }
 
+    async getUserProfile() {
+        try {
+            const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 'Authorization': `Bearer ${this.accessToken}` }
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Error fetching user profile', err);
+            return null;
+        }
+    }
+
     async findBackupFile() {
         try {
             const response = await gapi.client.drive.files.list({
@@ -539,6 +552,19 @@ class GoogleDriveSync {
             return (files && files.length > 0) ? files[0] : null;
         } catch (err) {
             console.error('Error finding file', err);
+            return null;
+        }
+    }
+
+    async downloadFile(fileId) {
+        try {
+            const response = await gapi.client.drive.files.get({
+                fileId: fileId,
+                alt: 'media'
+            });
+            return response.result;
+        } catch (err) {
+            console.error('Error downloading file', err);
             return null;
         }
     }
@@ -632,6 +658,10 @@ const els = {
     syncStatusIndicator: document.getElementById('sync-status-indicator'),
     syncDetails: document.getElementById('sync-details'),
     lastSyncTime: document.getElementById('last-sync-time'),
+    syncStatusText: document.getElementById('sync-status-text'),
+    syncUserEmail: document.getElementById('sync-user-email'),
+    signOutBtn: document.getElementById('sign-out-btn'),
+    driveCard: document.querySelector('.drive-card'),
     // Settings    // Modals
     settingsModal: document.getElementById('settings-modal'),
     settingVertices: document.getElementById('setting-vertices'),
@@ -798,6 +828,11 @@ const App = {
 
         els.syncBtn.onclick = () => {
             this.drive.handleAuthClick();
+        };
+        els.signOutBtn.onclick = () => {
+            if (confirm("Sign out from Google Drive?")) {
+                this.drive.signOut();
+            }
         };
 
         els.importInput.onchange = (e) => this.importData(e);
@@ -1312,33 +1347,44 @@ const App = {
         const isConnected = this.drive.isSignedIn;
         const lastSync = localStorage.getItem('csg_last_sync');
         const isDirty = this.isDataDirty();
+        const driveCard = document.querySelector('.drive-card');
 
         if (isConnected) {
             els.syncDetails.classList.remove('hidden');
-            els.syncBtn.innerText = 'Sync Active';
+            els.signOutBtn.classList.remove('hidden');
+            els.syncBtn.innerText = 'Sync Now';
             els.syncBtn.classList.add('secondary-btn');
             els.syncBtn.classList.remove('primary-btn');
             els.syncBtn.onclick = () => this.triggerAutoSync(true); // Manual trigger force
 
             if (lastSync) {
                 const date = new Date(lastSync);
-                els.lastSyncTime.innerText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                // Matches paimon.moe long date format
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+                els.lastSyncTime.innerText = date.toLocaleDateString(undefined, options);
             }
 
             if (isDirty) {
                 els.syncStatusIndicator.className = 'sync-indicator outdated';
                 els.syncStatusIndicator.title = 'Local changes pending sync';
+                els.syncStatusText.innerText = 'Outdated';
+                els.syncStatusText.style.color = '#f97316';
             } else {
                 els.syncStatusIndicator.className = 'sync-indicator synced';
                 els.syncStatusIndicator.title = 'Data is up to date in Drive';
+                els.syncStatusText.innerText = 'Synced';
+                els.syncStatusText.style.color = '#10b981';
             }
         } else {
             els.syncDetails.classList.add('hidden');
+            els.signOutBtn.classList.add('hidden');
             els.syncBtn.innerText = 'Connect & Sync';
             els.syncBtn.classList.remove('secondary-btn');
             els.syncBtn.classList.add('primary-btn');
             els.syncBtn.onclick = () => this.drive.handleAuthClick();
             els.syncStatusIndicator.className = 'sync-indicator';
+            if (driveCard) driveCard.classList.remove('connected');
+            if (els.syncUserEmail) els.syncUserEmail.innerText = 'Not available';
         }
     },
 
@@ -1642,6 +1688,44 @@ const App = {
         els.importReviewModal.classList.add('hidden');
         this.refreshSeriesUI();
         alert("Import complete!");
+    },
+
+    async checkSyncConflict() {
+        if (!window.gapi || !gapi.client || !gapi.client.getToken()) return;
+
+        const remoteFile = await this.drive.findBackupFile();
+        if (!remoteFile) {
+            // First time sync for this user
+            this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
+            return;
+        }
+
+        const remoteData = await this.drive.downloadFile(remoteFile.id);
+        if (!remoteData) return;
+
+        const localUpdated = this.state.data.lastUpdated || 0;
+        const remoteUpdated = remoteData.lastUpdated || 0;
+
+        // Tolerance of 2 seconds for clock drift/latency
+        const diff = remoteUpdated - localUpdated;
+
+        if (diff > 2000) {
+            // Remote is newer
+            if (confirm(`Cloud data is newer than local data.\n\nCloud: ${new Date(remoteUpdated).toLocaleString()}\nLocal: ${new Date(localUpdated).toLocaleString()}\n\nOverwrite local with Cloud data?`)) {
+                this.state.data = remoteData;
+                localStorage.setItem(this.state.storageKey, JSON.stringify(this.state.data));
+                localStorage.setItem('csg_is_dirty', 'false');
+                window.location.reload();
+            }
+        } else if (localUpdated - remoteUpdated > 2000) {
+            // Local is newer
+            console.log('Local data is newer, uploading...');
+            this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
+        } else {
+            console.log('Sync is up to date');
+            localStorage.setItem('csg_is_dirty', 'false');
+            this.updateSyncUI();
+        }
     }
 };
 
