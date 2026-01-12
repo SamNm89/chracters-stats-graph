@@ -9,7 +9,12 @@
 class State {
     constructor() {
         this.storageKey = 'csg_data_v2'; // Bump version
-        this.data = this.load() || this.createDefault();
+        this.data = null; // Data is loaded asynchronously
+        this.callbacks = []; // Listeners for data changes
+    }
+
+    async init() {
+        this.data = (await this.load()) || this.createDefault();
 
         // Ensure format migration if needed (simple check)
         if (!this.data.series) {
@@ -25,7 +30,7 @@ class State {
                     }
                 }
             };
-            this.save();
+            await this.save();
         }
     }
 
@@ -46,16 +51,25 @@ class State {
         };
     }
 
-    load() {
+    async load() {
         try {
-            // Check v2 key first
-            let json = localStorage.getItem('csg_data_v2');
-            if (json) return JSON.parse(json);
+            // Check localForage first
+            let data = await localforage.getItem(this.storageKey);
+            if (data) return data;
 
-            // Check v1 key
+            // Fallback: Check localStorage (migration path)
+            let json = localStorage.getItem('csg_data_v2');
+            if (json) {
+                data = JSON.parse(json);
+                // Move to localForage
+                await localforage.setItem(this.storageKey, data);
+                return data;
+            }
+
+            // Check v1 key in localStorage
             json = localStorage.getItem('csg_data_v1');
             if (json) {
-                // Return simple object, constructor will migrate it
+                // Return simple object, init will migrate it
                 return JSON.parse(json);
             }
             return null;
@@ -65,25 +79,36 @@ class State {
         }
     }
 
-    save() {
-        this.data.lastUpdated = Date.now();
-        localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+    async save() {
+        if (!this.data) return;
+        await localforage.setItem(this.storageKey, this.data);
+        this.notifyListeners();
+    }
+
+    subscribe(callback) {
+        this.callbacks.push(callback);
+    }
+
+    notifyListeners() {
+        this.callbacks.forEach(cb => cb(this.data));
     }
 
     // --- Series Helpers ---
 
     get activeSeries() {
+        if (!this.data) return null;
         return this.data.series[this.data.activeSeriesId];
     }
 
     getSeriesList() {
+        if (!this.data) return [];
         return Object.keys(this.data.series).map(id => ({
             id,
             name: this.data.series[id].name
         }));
     }
 
-    createSeries(name) {
+    async createSeries(name) {
         const id = crypto.randomUUID();
         this.data.series[id] = {
             name: name,
@@ -91,25 +116,25 @@ class State {
             characters: []
         };
         this.data.activeSeriesId = id;
-        this.save();
+        await this.save();
         return id;
     }
 
-    switchSeries(id) {
+    async switchSeries(id) {
         if (this.data.series[id]) {
             this.data.activeSeriesId = id;
-            this.save();
+            await this.save();
         }
     }
 
-    updateSeriesName(id, name) {
+    async updateSeriesName(id, name) {
         if (this.data.series[id]) {
             this.data.series[id].name = name;
-            this.save();
+            await this.save();
         }
     }
 
-    deleteSeries(id) {
+    async deleteSeries(id) {
         // Can't delete the last one
         if (Object.keys(this.data.series).length <= 1) return false;
 
@@ -118,15 +143,15 @@ class State {
         if (this.data.activeSeriesId === id) {
             this.data.activeSeriesId = Object.keys(this.data.series)[0];
         }
-        this.save();
+        await this.save();
         return true;
     }
 
     // --- Active Series Methods ---
 
-    get settings() { return this.activeSeries.settings; }
+    get settings() { return this.activeSeries ? this.activeSeries.settings : null; }
 
-    updateSettings(dimensions, tiers, statNames) {
+    async updateSettings(dimensions, tiers, statNames) {
         const oldDim = this.activeSeries.settings.dimensions;
 
         // Migration logic if dimensions changed arbitrarily (e.g. from a bulk update)
@@ -145,10 +170,10 @@ class State {
         this.activeSeries.settings.dimensions = dimensions;
         this.activeSeries.settings.tiers = tiers;
         if (statNames) this.activeSeries.settings.statNames = statNames;
-        this.save();
+        await this.save();
     }
 
-    insertStat(index, name = "New Stat") {
+    async insertStat(index, name = "New Stat") {
         const s = this.activeSeries;
         s.settings.dimensions++;
         if (!s.settings.statNames) {
@@ -160,10 +185,10 @@ class State {
             if (!char.stats) char.stats = [];
             char.stats.splice(index, 0, 0);
         });
-        this.save();
+        await this.save();
     }
 
-    removeStat(index) {
+    async removeStat(index) {
         const s = this.activeSeries;
         if (s.settings.dimensions <= 3) return;
 
@@ -175,14 +200,14 @@ class State {
         s.characters.forEach(char => {
             if (char.stats) char.stats.splice(index, 1);
         });
-        this.save();
+        await this.save();
     }
 
-    getCharacters() { return this.activeSeries.characters; }
+    getCharacters() { return this.activeSeries ? this.activeSeries.characters : []; }
 
-    getCharacter(id) { return this.activeSeries.characters.find(c => c.id === id); }
+    getCharacter(id) { return this.activeSeries ? this.activeSeries.characters.find(c => c.id === id) : null; }
 
-    saveCharacter(charData) {
+    async saveCharacter(charData) {
         if (!charData.id) {
             charData.id = crypto.randomUUID();
             this.activeSeries.characters.push(charData);
@@ -190,13 +215,13 @@ class State {
             const idx = this.activeSeries.characters.findIndex(c => c.id === charData.id);
             if (idx !== -1) this.activeSeries.characters[idx] = charData;
         }
-        this.save();
+        await this.save();
         return charData.id;
     }
 
-    deleteCharacter(id) {
+    async deleteCharacter(id) {
         this.activeSeries.characters = this.activeSeries.characters.filter(c => c.id !== id);
-        this.save();
+        await this.save();
     }
 }
 
@@ -410,16 +435,16 @@ function mapPoints(arr) { return arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1
    3. GOOGLE SYNC & APP CONTROLLER
    ========================================= */
 const CLIENT_ID = '422487925462-sjl9obqg89942k80ntm127d0uvmh2fui.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
-const API_KEY = ''; // Optional
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const API_KEY = ''; // Optional but recommended
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
 class GoogleDriveSync {
     constructor(callbacks) {
         this.tokenClient = null;
-        this.accessToken = null;
         this.callbacks = callbacks || {};
         this.isInitialized = false;
+        this.saveFileName = 'save.json';
     }
 
     loadScripts() {
@@ -445,33 +470,48 @@ class GoogleDriveSync {
 
         await this.loadScripts();
         await new Promise((resolve) => gapi.load('client', resolve));
-        await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] });
 
+        // Init GAPI Client with Discovery Docs (API Key optional)
+        const gapiConfig = {
+            discoveryDocs: [DISCOVERY_DOC],
+        };
+        if (API_KEY) {
+            gapiConfig.apiKey = API_KEY;
+        }
+        await gapi.client.init(gapiConfig);
+
+        // Init Token Client (Identity Services)
         this.tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID,
             scope: SCOPES,
             callback: (tokenResponse) => {
                 if (tokenResponse.error !== undefined) {
-                    if (tokenResponse.error === 'interaction_required') {
-                        // Silent re-auth failed, user needs to click button manually
-                        console.log('Silent re-auth failed, interaction required.');
-                        localStorage.removeItem('csg_drive_connected');
-                        if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
-                        return;
-                    }
-                    throw tokenResponse;
+                    console.error(tokenResponse);
+                    return;
                 }
-                this.accessToken = tokenResponse.access_token;
+                // CRITICAL: Set the token for GAPI client
+                gapi.client.setToken(tokenResponse);
+
                 localStorage.setItem('csg_drive_connected', 'true');
                 if (this.callbacks.onSignIn) this.callbacks.onSignIn();
             },
         });
+
         this.isInitialized = true;
 
         // Try silent re-auth if previously connected
         if (localStorage.getItem('csg_drive_connected') === 'true') {
-            console.log('Attempting silent re-auth...');
-            this.tokenClient.requestAccessToken({ prompt: 'none' });
+            try {
+                // Check if we have a valid token or need to request one
+                // gapi.client.getToken() might be null initially
+                // We can't easily "silent re-auth" with prompt:none effectively without a hint
+                // But we can check if gapi client has a token if we persisted it (we didn't).
+                // Standard pattern is to ask for token with prompt='' or check session.
+                // For now, let's wait for user action or assume session might be active.
+                // Actually, the new Identity Services requires a new token request.
+                // We can try immediate request if we think we are connected.
+                // this.tokenClient.requestAccessToken({ prompt: 'none' }); // Often fails without hint
+            } catch(e) { console.log(e); }
         }
     }
 
@@ -480,11 +520,13 @@ class GoogleDriveSync {
             alert("Google Sync is not configured. Please add a valid Client ID in the script.");
             return;
         }
-        if (gapi.client.getToken() === null) {
-            this.tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            this.tokenClient.requestAccessToken({ prompt: '' });
-        }
+
+        // Always request a new token to ensure validity
+        this.tokenClient.requestAccessToken({ prompt: '' });
+    }
+
+    get isSignedIn() {
+        return window.gapi && gapi.client && gapi.client.getToken() !== null;
     }
 
     async getUserProfile() {
@@ -502,7 +544,7 @@ class GoogleDriveSync {
     async findBackupFile() {
         try {
             const response = await gapi.client.drive.files.list({
-                q: "name = 'csg_data.json' and trashed = false",
+                q: `name = '${this.saveFileName}'`,
                 fields: 'files(id, name, modifiedTime)',
                 spaces: 'appDataFolder'
             });
@@ -528,48 +570,63 @@ class GoogleDriveSync {
     }
 
     async saveToCloud(data) {
-        const fileObj = await this.findBackupFile();
-        const fileId = fileObj ? fileObj.id : null;
+        if (!this.isSignedIn) return;
+        if (this.callbacks.onSyncStart) this.callbacks.onSyncStart();
 
-        const fileContent = JSON.stringify(data);
-        const file = new Blob([fileContent], { type: 'application/json' });
-        const metadata = {
-            'name': 'csg_data.json',
-            'mimeType': 'application/json',
-            'parents': ['appDataFolder']
-        };
-        const accessToken = gapi.client.getToken().access_token;
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', file);
+        try {
+            let file = await this.findBackupFile();
+            let fileId = file ? file.id : null;
 
-        const url = fileId
-            ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-            : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder`;
+            if (!fileId) {
+                // Create file
+                const createRes = await gapi.client.drive.files.create({
+                    resource: {
+                        name: this.saveFileName,
+                        parents: ['appDataFolder']
+                    },
+                    fields: 'id',
+                });
+                fileId = createRes.result.id;
+            }
 
-        await fetch(url, {
-            method: fileId ? 'PATCH' : 'POST',
-            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
-            body: form
-        });
+            // Update content
+            await gapi.client.request({
+                path: `/upload/drive/v3/files/${fileId}`,
+                method: 'PATCH',
+                params: { uploadType: 'media' },
+                body: JSON.stringify(data)
+            });
 
-        // Update local state for sync tracking
-        localStorage.setItem('csg_last_sync', new Date().toISOString());
-        localStorage.setItem('csg_is_dirty', 'false');
+            // Update local state for sync tracking
+            localStorage.setItem('csg_last_sync', new Date().toISOString());
+            localStorage.setItem('csg_is_dirty', 'false');
+            console.log('Saved to Drive (AppData)');
 
-        console.log('Saved to Drive appDataFolder');
+            if (this.callbacks.onSyncComplete) this.callbacks.onSyncComplete();
+
+        } catch (e) {
+            console.error("Save to Cloud failed:", e);
+        }
     }
 
-    signOut() {
-        if (gapi.client.getToken()) {
-            google.accounts.oauth2.revoke(gapi.client.getToken().access_token, () => {
-                gapi.client.setToken(null);
-                localStorage.removeItem('csg_drive_connected');
-                if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
+    async loadFromCloud() {
+        if (!this.isSignedIn) return null;
+        try {
+            const file = await this.findBackupFile();
+            if (!file) return null;
+
+            const response = await gapi.client.drive.files.get({
+                fileId: file.id,
+                alt: 'media'
             });
-        } else {
-            localStorage.removeItem('csg_drive_connected');
-            if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
+
+            return {
+                data: response.result,
+                metadata: file
+            };
+        } catch(e) {
+            console.error("Load from Cloud failed:", e);
+            return null;
         }
     }
 }
@@ -636,8 +693,10 @@ const els = {
 };
 
 const App = {
-    init() {
+    async init() {
         this.state = new State();
+        await this.state.init(); // Async init
+
         this.graph = new Graph(els.svg);
         this.miniGraph = new Graph(els.settingMiniGraph);
 
@@ -645,13 +704,28 @@ const App = {
         this.drive = new GoogleDriveSync({
             onSignIn: () => {
                 this.updateSyncUI();
-                this.checkSyncConflict();
+                this.checkForCloudUpdates();
             },
             onSignedOut: () => {
                 this.updateSyncUI();
+            },
+            onSyncStart: () => {
+                els.syncStatusIndicator.className = 'sync-indicator syncing';
+                els.syncStatusIndicator.title = 'Syncing...';
+            },
+            onSyncComplete: () => {
+                this.updateSyncUI();
             }
         });
+
+        // Wait for scripts to load if needed, but we can start init
         this.drive.init();
+
+        // Subscribe to state changes to trigger auto-save
+        this.state.subscribe(() => {
+            this.handleStateChange();
+        });
+
         // Mini graph needs smaller scale
         this.miniGraph.width = 150;
         this.miniGraph.height = 150;
@@ -679,10 +753,10 @@ const App = {
             els.seriesModal.classList.remove('hidden');
         };
         els.closeSeriesModal.onclick = () => els.seriesModal.classList.add('hidden');
-        els.createSeriesBtn.onclick = () => {
+        els.createSeriesBtn.onclick = async () => {
             const name = els.newSeriesInput.value.trim();
             if (name) {
-                this.state.createSeries(name);
+                await this.state.createSeries(name);
                 els.newSeriesInput.value = '';
                 this.refreshSeriesUI();
                 els.seriesModal.classList.add('hidden');
@@ -724,7 +798,7 @@ const App = {
         }
 
         els.cancelSettingsBtn.onclick = () => this.closeSettingsModal();
-        els.saveSettingsBtn.onclick = () => {
+        els.saveSettingsBtn.onclick = async () => {
             if (!this.settingsDraft) return;
 
             // SAFETY: Ensure we are still editing the same series we started with
@@ -746,7 +820,7 @@ const App = {
 
             // Merge the draft back into the state
             this.state.data.series[this.state.data.activeSeriesId] = this.settingsDraft;
-            this.state.save();
+            await this.state.save();
 
             this.closeSettingsModal();
             this.refreshGraph();
@@ -978,8 +1052,8 @@ const App = {
             const titleBtn = document.createElement('button');
             titleBtn.className = 'series-item-name';
             titleBtn.innerText = s.name;
-            titleBtn.onclick = () => {
-                this.state.switchSeries(s.id);
+            titleBtn.onclick = async () => {
+                await this.state.switchSeries(s.id);
                 this.refreshSeriesUI();
                 els.seriesModal.classList.add('hidden');
             };
@@ -992,11 +1066,11 @@ const App = {
             editBtn.className = 'icon-btn xs-btn';
             editBtn.innerHTML = '✎';
             editBtn.title = "Rename Series";
-            editBtn.onclick = (e) => {
+            editBtn.onclick = async (e) => {
                 e.stopPropagation();
                 const newName = prompt("Enter new name for the series:", s.name);
                 if (newName && newName.trim() !== "") {
-                    this.state.updateSeriesName(s.id, newName.trim());
+                    await this.state.updateSeriesName(s.id, newName.trim());
                     this.renderSeriesList();
                     if (s.id === this.state.data.activeSeriesId) {
                         els.seriesNameLabel.innerText = newName.trim();
@@ -1019,11 +1093,12 @@ const App = {
             delBtn.className = 'icon-btn xs-btn del-btn';
             delBtn.innerHTML = '🗑️';
             delBtn.title = "Delete Series";
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
                 const confirmName = prompt(`To delete series "${s.name}", please type its name exactly:`);
                 if (confirmName === s.name) {
-                    if (this.state.deleteSeries(s.id)) {
+                    const success = await this.state.deleteSeries(s.id);
+                    if (success) {
                         this.renderSeriesList();
                         this.refreshSeriesUI();
                     } else {
@@ -1085,10 +1160,10 @@ const App = {
             };
 
             const delBtn = div.querySelector('.del-btn');
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
                 if (confirm(`Delete ${char.name}?`)) {
-                    this.state.deleteCharacter(char.id);
+                    await this.state.deleteCharacter(char.id);
                     if (this.state.activeCharId === char.id) this.renderEmptyState();
                     this.renderList();
                 }
@@ -1190,7 +1265,7 @@ const App = {
         this.graph.animateTo(stats);
     },
 
-    saveCharacter() {
+    async saveCharacter() {
         const stats = [];
         els.statSliders.querySelectorAll('input').forEach(i => stats.push(parseInt(i.value)));
         const data = {
@@ -1200,14 +1275,14 @@ const App = {
             bgImage: els.editBg.value,
             stats: stats
         };
-        const savedId = this.state.saveCharacter(data);
+        const savedId = await this.state.saveCharacter(data);
         this.selectCharacter(savedId);
         els.editorPanel.classList.add('hidden');
     },
 
-    deleteCharacter() {
+    async deleteCharacter() {
         if (this.editingId && confirm("Delete?")) {
-            this.state.deleteCharacter(this.editingId);
+            await this.state.deleteCharacter(this.editingId);
             els.editorPanel.classList.add('hidden');
             this.refreshSeriesUI();
         }
@@ -1257,9 +1332,11 @@ const App = {
         return localStorage.getItem('csg_is_dirty') === 'true';
     },
 
-    triggerAutoSync() {
-        if (window.gapi && gapi.client && gapi.client.getToken() && this.isDataDirty()) {
-            console.log('Auto-syncing to cloud...');
+    triggerAutoSync(force = false) {
+        if (!this.drive.isSignedIn) return;
+
+        if (force || this.isDataDirty()) {
+            console.log('Syncing to cloud...');
             this.drive.saveToCloud(this.state.data).then(() => {
                 this.updateSyncUI();
             });
@@ -1267,27 +1344,18 @@ const App = {
     },
 
     updateSyncUI() {
-        const token = window.gapi && gapi.client && gapi.client.getToken();
+        const isConnected = this.drive.isSignedIn;
         const lastSync = localStorage.getItem('csg_last_sync');
         const isDirty = this.isDataDirty();
         const driveCard = document.querySelector('.drive-card');
 
-        if (token) {
+        if (isConnected) {
             els.syncDetails.classList.remove('hidden');
             els.signOutBtn.classList.remove('hidden');
             els.syncBtn.innerText = 'Sync Now';
             els.syncBtn.classList.add('secondary-btn');
             els.syncBtn.classList.remove('primary-btn');
-            if (driveCard) driveCard.classList.add('connected');
-
-            // Fetch and show email if not already there
-            if (els.syncUserEmail && (els.syncUserEmail.innerText === 'Not available' || els.syncUserEmail.innerText === '')) {
-                this.drive.getUserProfile().then(profile => {
-                    if (profile && profile.email) {
-                        els.syncUserEmail.innerText = profile.email;
-                    }
-                });
-            }
+            els.syncBtn.onclick = () => this.triggerAutoSync(true); // Manual trigger force
 
             if (lastSync) {
                 const date = new Date(lastSync);
@@ -1313,11 +1381,95 @@ const App = {
             els.syncBtn.innerText = 'Connect & Sync';
             els.syncBtn.classList.remove('secondary-btn');
             els.syncBtn.classList.add('primary-btn');
+            els.syncBtn.onclick = () => this.drive.handleAuthClick();
             els.syncStatusIndicator.className = 'sync-indicator';
             if (driveCard) driveCard.classList.remove('connected');
             if (els.syncUserEmail) els.syncUserEmail.innerText = 'Not available';
         }
     },
+
+    async checkForCloudUpdates() {
+        if (!this.drive.isSignedIn) return;
+
+        console.log("Checking for cloud updates...");
+        const remote = await this.drive.loadFromCloud();
+
+        if (!remote) {
+            console.log("No remote data found. Uploading local.");
+            // No remote file, so we just upload our local state if we have any
+            this.triggerAutoSync(true);
+            return;
+        }
+
+        const remoteTime = dayjs(remote.metadata.modifiedTime);
+        const lastSync = localStorage.getItem('csg_last_sync');
+        const localTime = lastSync ? dayjs(lastSync) : dayjs(0); // If never synced, treat as old
+
+        console.log(`Local: ${localTime.format()}, Remote: ${remoteTime.format()}`);
+
+        // If remote is significantly newer (e.g. > 2 seconds to account for network drift)
+        if (remoteTime.diff(localTime) > 2000) {
+            if (this.isDataDirty()) {
+                // Conflict: Both changed
+                this.showSyncConflict(remote);
+            } else {
+                // Local is clean but old: Auto-update from cloud
+                console.log("Remote is newer and local is clean. Updating from cloud.");
+                this.applyCloudData(remote.data);
+            }
+        } else {
+            console.log("Local is up to date or newer.");
+            if (this.isDataDirty()) {
+                this.triggerAutoSync();
+            }
+        }
+    },
+
+    showSyncConflict(remote) {
+        const modal = document.getElementById('sync-conflict-modal');
+        const cloudTimeEl = document.getElementById('conflict-cloud-time');
+        const localTimeEl = document.getElementById('conflict-local-time');
+        const useCloudBtn = document.getElementById('use-cloud-btn');
+        const useLocalBtn = document.getElementById('use-local-btn');
+
+        cloudTimeEl.innerText = `Last Modified: ${new Date(remote.metadata.modifiedTime).toLocaleString()}`;
+        localTimeEl.innerText = `Last Modified: ${new Date().toLocaleString()} (Unsaved changes)`;
+
+        useCloudBtn.onclick = () => {
+            this.applyCloudData(remote.data);
+            modal.classList.add('hidden');
+        };
+
+        useLocalBtn.onclick = () => {
+            // Force push local to cloud
+            this.triggerAutoSync(true);
+            modal.classList.add('hidden');
+        };
+
+        modal.classList.remove('hidden');
+    },
+
+    async applyCloudData(data) {
+        this.state.data = data;
+        await this.state.save();
+        localStorage.setItem('csg_last_sync', new Date().toISOString());
+        localStorage.setItem('csg_is_dirty', 'false');
+
+        // Refresh UI
+        this.refreshSeriesUI();
+        this.updateSyncUI();
+        console.log("Cloud data applied.");
+    },
+
+    handleStateChange() {
+        localStorage.setItem('csg_is_dirty', 'true');
+        this.debouncedSave();
+    },
+
+    // Debounced save
+    debouncedSave: _.debounce(function() {
+        this.triggerAutoSync();
+    }, 5000), // 5 seconds debounce
 
     exportSeries(id) {
         const series = this.state.data.series[id];
@@ -1346,7 +1498,7 @@ const App = {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const imported = JSON.parse(event.target.result);
 
@@ -1382,9 +1534,9 @@ const App = {
                     }))
                 };
 
-                this.state.save();
+                await this.state.save();
                 this.refreshSeriesUI(); // Update UI to switch to new series (optional: we usually switch to the new one)
-                this.state.switchSeries(newId);
+                await this.state.switchSeries(newId);
                 this.refreshSeriesUI();
 
                 els.seriesModal.classList.add('hidden');
@@ -1494,7 +1646,7 @@ const App = {
         els.confirmImportBtn.onclick = () => this.executeImport(importedData);
     },
 
-    executeImport(importedData) {
+    async executeImport(importedData) {
         const localData = this.state.data;
 
         Object.keys(importedData.series).forEach(importUuid => {
@@ -1532,7 +1684,7 @@ const App = {
             }
         });
 
-        this.state.save();
+        await this.state.save();
         els.importReviewModal.classList.add('hidden');
         this.refreshSeriesUI();
         alert("Import complete!");
