@@ -24,6 +24,14 @@ A modern radar chart visualizer for character statistics. Build rosters, customi
 
 *Note: Visual guide with photos and videos will be added here soon.*
 
+## Modularization
+
+Refactored `js/app.js` into ES6 modules:
+- `js/state.js`: Manages application state and data persistence.
+- `js/graph.js`: Handles SVG graph rendering.
+- `js/drive.js`: Manages Google Drive synchronization.
+- `js/main.js`: Main entry point and UI controller.
+
 ## Privacy & Data
 
 - **Local Storage**: Your character data, stats, and series are stored locally in your browser's `localStorage`. No data is sent to or stored on our servers.
