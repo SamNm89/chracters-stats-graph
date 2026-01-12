@@ -32,6 +32,7 @@ class State {
     createDefault() {
         return {
             activeSeriesId: 'default',
+            lastUpdated: Date.now(),
             series: {
                 'default': {
                     name: 'My First Series',
@@ -65,6 +66,7 @@ class State {
     }
 
     save() {
+        this.data.lastUpdated = Date.now();
         localStorage.setItem(this.storageKey, JSON.stringify(this.data));
     }
 
@@ -408,7 +410,7 @@ function mapPoints(arr) { return arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1
    3. GOOGLE SYNC & APP CONTROLLER
    ========================================= */
 const CLIENT_ID = '422487925462-sjl9obqg89942k80ntm127d0uvmh2fui.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
 const API_KEY = ''; // Optional
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
@@ -485,26 +487,57 @@ class GoogleDriveSync {
         }
     }
 
+    async getUserProfile() {
+        try {
+            const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 'Authorization': `Bearer ${this.accessToken}` }
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Error fetching user profile', err);
+            return null;
+        }
+    }
+
     async findBackupFile() {
         try {
             const response = await gapi.client.drive.files.list({
-                q: "name = 'csg_backup.json' and trashed = false",
-                fields: 'files(id, name)',
-                spaces: 'drive'
+                q: "name = 'csg_data.json' and trashed = false",
+                fields: 'files(id, name, modifiedTime)',
+                spaces: 'appDataFolder'
             });
             const files = response.result.files;
-            return (files && files.length > 0) ? files[0].id : null;
+            return (files && files.length > 0) ? files[0] : null;
         } catch (err) {
             console.error('Error finding file', err);
             return null;
         }
     }
 
+    async downloadFile(fileId) {
+        try {
+            const response = await gapi.client.drive.files.get({
+                fileId: fileId,
+                alt: 'media'
+            });
+            return response.result;
+        } catch (err) {
+            console.error('Error downloading file', err);
+            return null;
+        }
+    }
+
     async saveToCloud(data) {
-        const fileId = await this.findBackupFile();
+        const fileObj = await this.findBackupFile();
+        const fileId = fileObj ? fileObj.id : null;
+
         const fileContent = JSON.stringify(data);
         const file = new Blob([fileContent], { type: 'application/json' });
-        const metadata = { 'name': 'csg_backup.json', 'mimeType': 'application/json' };
+        const metadata = {
+            'name': 'csg_data.json',
+            'mimeType': 'application/json',
+            'parents': ['appDataFolder']
+        };
         const accessToken = gapi.client.getToken().access_token;
         const form = new FormData();
         form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -512,7 +545,7 @@ class GoogleDriveSync {
 
         const url = fileId
             ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+            : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder`;
 
         await fetch(url, {
             method: fileId ? 'PATCH' : 'POST',
@@ -524,7 +557,20 @@ class GoogleDriveSync {
         localStorage.setItem('csg_last_sync', new Date().toISOString());
         localStorage.setItem('csg_is_dirty', 'false');
 
-        console.log('Saved to Drive');
+        console.log('Saved to Drive appDataFolder');
+    }
+
+    signOut() {
+        if (gapi.client.getToken()) {
+            google.accounts.oauth2.revoke(gapi.client.getToken().access_token, () => {
+                gapi.client.setToken(null);
+                localStorage.removeItem('csg_drive_connected');
+                if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
+            });
+        } else {
+            localStorage.removeItem('csg_drive_connected');
+            if (this.callbacks.onSignedOut) this.callbacks.onSignedOut();
+        }
     }
 }
 
@@ -555,6 +601,10 @@ const els = {
     syncStatusIndicator: document.getElementById('sync-status-indicator'),
     syncDetails: document.getElementById('sync-details'),
     lastSyncTime: document.getElementById('last-sync-time'),
+    syncStatusText: document.getElementById('sync-status-text'),
+    syncUserEmail: document.getElementById('sync-user-email'),
+    signOutBtn: document.getElementById('sign-out-btn'),
+    driveCard: document.querySelector('.drive-card'),
     // Settings    // Modals
     settingsModal: document.getElementById('settings-modal'),
     settingVertices: document.getElementById('setting-vertices'),
@@ -595,10 +645,7 @@ const App = {
         this.drive = new GoogleDriveSync({
             onSignIn: () => {
                 this.updateSyncUI();
-                // Auto-upload current state on connect if dirty
-                if (this.isDataDirty()) {
-                    this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
-                }
+                this.checkSyncConflict();
             },
             onSignedOut: () => {
                 this.updateSyncUI();
@@ -707,6 +754,11 @@ const App = {
 
         els.syncBtn.onclick = () => {
             this.drive.handleAuthClick();
+        };
+        els.signOutBtn.onclick = () => {
+            if (confirm("Sign out from Google Drive?")) {
+                this.drive.signOut();
+            }
         };
 
         els.importInput.onchange = (e) => this.importData(e);
@@ -1218,31 +1270,52 @@ const App = {
         const token = window.gapi && gapi.client && gapi.client.getToken();
         const lastSync = localStorage.getItem('csg_last_sync');
         const isDirty = this.isDataDirty();
+        const driveCard = document.querySelector('.drive-card');
 
         if (token) {
             els.syncDetails.classList.remove('hidden');
-            els.syncBtn.innerText = 'Sync Active';
+            els.signOutBtn.classList.remove('hidden');
+            els.syncBtn.innerText = 'Sync Now';
             els.syncBtn.classList.add('secondary-btn');
             els.syncBtn.classList.remove('primary-btn');
+            if (driveCard) driveCard.classList.add('connected');
+
+            // Fetch and show email if not already there
+            if (els.syncUserEmail && (els.syncUserEmail.innerText === 'Not available' || els.syncUserEmail.innerText === '')) {
+                this.drive.getUserProfile().then(profile => {
+                    if (profile && profile.email) {
+                        els.syncUserEmail.innerText = profile.email;
+                    }
+                });
+            }
 
             if (lastSync) {
                 const date = new Date(lastSync);
-                els.lastSyncTime.innerText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                // Matches paimon.moe long date format
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+                els.lastSyncTime.innerText = date.toLocaleDateString(undefined, options);
             }
 
             if (isDirty) {
                 els.syncStatusIndicator.className = 'sync-indicator outdated';
                 els.syncStatusIndicator.title = 'Local changes pending sync';
+                els.syncStatusText.innerText = 'Outdated';
+                els.syncStatusText.style.color = '#f97316';
             } else {
                 els.syncStatusIndicator.className = 'sync-indicator synced';
                 els.syncStatusIndicator.title = 'Data is up to date in Drive';
+                els.syncStatusText.innerText = 'Synced';
+                els.syncStatusText.style.color = '#10b981';
             }
         } else {
             els.syncDetails.classList.add('hidden');
+            els.signOutBtn.classList.add('hidden');
             els.syncBtn.innerText = 'Connect & Sync';
             els.syncBtn.classList.remove('secondary-btn');
             els.syncBtn.classList.add('primary-btn');
             els.syncStatusIndicator.className = 'sync-indicator';
+            if (driveCard) driveCard.classList.remove('connected');
+            if (els.syncUserEmail) els.syncUserEmail.innerText = 'Not available';
         }
     },
 
@@ -1463,6 +1536,44 @@ const App = {
         els.importReviewModal.classList.add('hidden');
         this.refreshSeriesUI();
         alert("Import complete!");
+    },
+
+    async checkSyncConflict() {
+        if (!window.gapi || !gapi.client || !gapi.client.getToken()) return;
+
+        const remoteFile = await this.drive.findBackupFile();
+        if (!remoteFile) {
+            // First time sync for this user
+            this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
+            return;
+        }
+
+        const remoteData = await this.drive.downloadFile(remoteFile.id);
+        if (!remoteData) return;
+
+        const localUpdated = this.state.data.lastUpdated || 0;
+        const remoteUpdated = remoteData.lastUpdated || 0;
+
+        // Tolerance of 2 seconds for clock drift/latency
+        const diff = remoteUpdated - localUpdated;
+
+        if (diff > 2000) {
+            // Remote is newer
+            if (confirm(`Cloud data is newer than local data.\n\nCloud: ${new Date(remoteUpdated).toLocaleString()}\nLocal: ${new Date(localUpdated).toLocaleString()}\n\nOverwrite local with Cloud data?`)) {
+                this.state.data = remoteData;
+                localStorage.setItem(this.state.storageKey, JSON.stringify(this.state.data));
+                localStorage.setItem('csg_is_dirty', 'false');
+                window.location.reload();
+            }
+        } else if (localUpdated - remoteUpdated > 2000) {
+            // Local is newer
+            console.log('Local data is newer, uploading...');
+            this.drive.saveToCloud(this.state.data).then(() => this.updateSyncUI());
+        } else {
+            console.log('Sync is up to date');
+            localStorage.setItem('csg_is_dirty', 'false');
+            this.updateSyncUI();
+        }
     }
 };
 
